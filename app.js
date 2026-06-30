@@ -54,14 +54,27 @@ function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
 }
-function fitZones() {
+function fitZones(opts) {
   if (!zones.length) return;
   const b = new maplibregl.LngLatBounds();
   for (const z of zones) for (const [x, y] of z.feature.geometry.coordinates[0]) b.extend([x, y]);
-  map.fitBounds(b, { padding: 40, duration: 600 });
+  map.fitBounds(b, { padding: 40, duration: 600, ...opts });
 }
 
-// ---- click anywhere to drop a draggable coordinate pin (tap the popup to copy) ----
+// CAD-style: the NavigationControl compass IS the gimbal indicator (needle tilts
+// with pitch). Double-click it to snap the whole view home — north-up, flat,
+// framed on the zones (or the default region when there are none).
+function resetView() {
+  if (zones.length) fitZones({ pitch: 0, bearing: 0 });
+  else map.easeTo({ center: [34.78, 32.08], zoom: 7, pitch: 0, bearing: 0, duration: 600 });
+}
+const compass = map.getContainer().querySelector('.maplibregl-ctrl-compass');
+if (compass) {
+  compass.title = 'Orientation — double-click to reset the view';
+  compass.addEventListener('dblclick', resetView);
+}
+
+// ---- long-press to drop a draggable coordinate pin (tap the popup to copy) ----
 let coordPin;
 function showCoord() {
   const { lng, lat } = coordPin.getLngLat();
@@ -69,15 +82,25 @@ function showCoord() {
   coordPin.getPopup().setHTML(`<span class="coordtxt">${t}</span><button class="copybtn" data-c="${t}">Copy</button>`);
   if (!coordPin.getPopup().isOpen()) coordPin.togglePopup();
 }
-map.on('click', (e) => {
+function dropPin(lngLat) {
   if (!coordPin) {
     coordPin = new maplibregl.Marker({ color: '#22e0e0', draggable: true })
       .setPopup(new maplibregl.Popup({ closeButton: false, offset: 26 }));
     coordPin.on('drag', showCoord);
   }
-  coordPin.setLngLat(e.lngLat).addTo(map);
+  coordPin.setLngLat(lngLat).addTo(map);
   showCoord();
-});
+}
+// hold ~450ms without panning to drop the pin; any pan/zoom/release cancels.
+let pressTimer;
+const startPress = (e) => {
+  if (e.originalEvent.target.closest('.maplibregl-marker')) return; // not when grabbing a marker
+  pressTimer = setTimeout(() => dropPin(e.lngLat), 450);
+};
+const cancelPress = () => clearTimeout(pressTimer);
+map.on('mousedown', startPress);
+map.on('touchstart', startPress);
+for (const ev of ['mouseup', 'touchend', 'move']) map.on(ev, cancelPress);
 document.addEventListener('click', (e) => { // Copy button in the coordinate popup
   const btn = e.target.closest('.copybtn');
   if (!btn) return;
@@ -258,7 +281,9 @@ async function refreshMissions(selectFirst) {
     sel.style.display = $('delmission').style.display = 'none';
     return alert('No saved missions found.');
   }
-  sel.innerHTML = missions.map((f) => `<option value="${f.id}">${f.name}</option>`).join('');
+  // ponytail: the .mission.json suffix is the on-disk marker that identifies our
+  // files among all drive.file files — keep it on disk, just hide it in the list.
+  sel.innerHTML = missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
   sel.style.display = $('delmission').style.display = 'inline';
   sel.onchange = () => loadMission(sel.value);
   if (selectFirst) loadMission(missions[0].id);
