@@ -65,6 +65,7 @@ import { featureName } from './geo.js';
 assert.equal(featureName({ name: 'גוש 7' }, 'Zone 1'), 'גוש 7');                                  // meaningful name kept
 assert.equal(featureName({ name: 'polygon 3', Name: 'שדה צפון' }, 'Zone 1'), 'שדה צפון');         // Hebrew from ExtendedData
 assert.equal(featureName({ name: 'Polygon 1', category: 'x', label: 'North' }, 'Zone 1'), 'North'); // label field
-assert.equal(featureName({ name: 'polygon 2' }, 'Zone 1'), 'polygon 2');                            // nothing else -> as-is
+assert.equal(featureName({ name: 'Polygon 2' }, 'סכנין'), 'סכנין');                                 // generic -> filename fallback
+assert.equal(featureName({ name: 'Untitled Polygon' }, 'עילבון'), 'עילבון');                        // untitled -> filename too
 assert.equal(featureName(null, 'Zone 9'), 'Zone 9');                                                // no props -> fallback
 console.log('featureName ok');

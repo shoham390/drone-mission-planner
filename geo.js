@@ -97,16 +97,17 @@ export function decodeXml(bytes) {
 }
 
 // Pick a human label for a feature. togeojson puts the Placemark <name> in
-// props.name, but many GIS exports auto-name placemarks "polygon 1" and keep the
-// real (often Hebrew) label in ExtendedData, which lands as another string prop.
+// props.name, but tools auto-name placemarks "Polygon 1"/"Untitled" and the real
+// label is the filename (passed as fallback) or an ExtendedData property.
 export function featureName(props, fallback) {
   if (!props) return fallback;
   const name = String(props.name ?? '').trim();
-  if (name && !/^polygon\s*\d+$/i.test(name)) return name; // a meaningful placemark name
+  const generic = !name || /^polygon\s*\d+$/i.test(name) || /^untitled/i.test(name);
+  if (!generic) return name;                                // a meaningful placemark name
   const strs = Object.entries(props).filter(([k, v]) => k !== 'name' && typeof v === 'string' && v.trim());
   const heb = strs.find(([, v]) => /[֐-׿]/.test(v));      // prefer a Hebrew label
   if (heb) return heb[1].trim();
   const labelish = strs.find(([k]) => /name|title|label/i.test(k)); // else an obvious label field
   if (labelish) return labelish[1].trim();
-  return name || fallback;
+  return fallback;                                          // generic + nothing better -> filename
 }

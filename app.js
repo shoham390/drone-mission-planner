@@ -167,21 +167,28 @@ async function fileToGeoJSON(file) {
   return kml(doc);
 }
 
-function addZonesFromGeoJSON(gj) {
+function addZonesFromGeoJSON(gj, fileLabel) {
+  // collect (base name, ring) for every polygon; base falls back to the filename
+  // when the placemark name is generic ("Polygon 1") or missing.
+  const items = [];
   for (const f of gj.features || []) {
-    const rings = polygonRings(f.geometry); // one zone per polygon — handles MultiPolygon/collections
-    const base = featureName(f.properties, `Zone ${zones.length + 1}`);
-    rings.forEach((ring, i) => {
-      const [clng, clat] = centroid(ring);
-      const center = { lat: clat, lng: clng };
-      const corner = { lat: ring[0][1], lng: ring[0][0] }; // ponytail: first vertex = the corner
-      const active = pointMode === 'corner' ? corner : center;
-      zones.push({
-        id: crypto.randomUUID(),
-        name: rings.length > 1 ? `${base} (${i + 1})` : base,
-        lat: active.lat, lng: active.lng, center, corner,
-        feature: { type: 'Feature', properties: { name: base }, geometry: { type: 'Polygon', coordinates: [ring] } },
-      });
+    const base = featureName(f.properties, fileLabel || `Zone ${zones.length + items.length + 1}`);
+    for (const ring of polygonRings(f.geometry)) items.push({ base, ring });
+  }
+  // number duplicates so two "Polygon 1/2" from סכנין.kmz become "סכנין 1", "סכנין 2"
+  const total = {}; for (const it of items) total[it.base] = (total[it.base] || 0) + 1;
+  const seen = {};
+  for (const it of items) {
+    seen[it.base] = (seen[it.base] || 0) + 1;
+    const name = total[it.base] > 1 ? `${it.base} ${seen[it.base]}` : it.base;
+    const [clng, clat] = centroid(it.ring);
+    const center = { lat: clat, lng: clng };
+    const corner = { lat: it.ring[0][1], lng: it.ring[0][0] }; // ponytail: first vertex = the corner
+    const active = pointMode === 'corner' ? corner : center;
+    zones.push({
+      id: crypto.randomUUID(), name,
+      lat: active.lat, lng: active.lng, center, corner,
+      feature: { type: 'Feature', properties: { name }, geometry: { type: 'Polygon', coordinates: [it.ring] } },
     });
   }
   drawZones();
@@ -194,7 +201,9 @@ $('files').onchange = async (e) => {
   for (const file of e.target.files) {
     try {
       const before = zones.length;
-      addZonesFromGeoJSON(await fileToGeoJSON(file));
+      // filename (no extension, no bidi marks) is the label when polygons are generically named
+      const label = file.name.replace(/\.(kml|kmz)$/i, '').replace(/[‎‏⁦-⁩]/g, '').trim();
+      addZonesFromGeoJSON(await fileToGeoJSON(file), label);
       if (zones.length === before) alert(`${file.name}: no polygons found`);
       else if (accessToken) await driveUploadBlob(file);
     } catch (err) {
