@@ -5,7 +5,7 @@ import {
 } from './geo.js';
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
-const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+const CLIENT_ID = '462312273267-hcab3itc0093mj9si0f76oaufvecos2t.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'; // per-file: no app verification needed
 
 // ---- state ----
