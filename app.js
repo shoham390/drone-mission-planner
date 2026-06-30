@@ -31,7 +31,8 @@ function initAuth() {
     scope: SCOPE,
     callback: (resp) => {
       accessToken = resp.access_token;
-      $('auth').textContent = 'Signed in to Google Drive.';
+      $('gate').style.display = 'none'; // enter the app
+      map.invalidateSize();
       $('save').disabled = false;
       $('load').disabled = false;
     },

@@ -44,15 +44,28 @@
       text-align: center; font-weight: 700; line-height: 26px; box-shadow: 0 1px 4px rgba(0,0,0,.5);
       border: 2px solid #fff; }
     .leaflet-container { background: #0b1220; }
+    #gate { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center;
+            justify-content: center; background: radial-gradient(circle at 50% 32%, #16233d, var(--bg)); }
+    .gate-card { text-align: center; max-width: 360px; padding: 40px 24px; }
+    .gate-card .logo { font-size: 56px; line-height: 1; }
+    .gate-card h1 { font-size: 26px; margin: 16px 0 10px; font-weight: 650; }
+    .gate-card p { color: var(--muted); margin: 0 0 26px; }
+    .gate-card #signin { font-size: 15px; padding: 12px 24px; }
+    .gate-card .note { font-size: 12px; margin: 20px 0 0; }
   </style>
 </head>
 <body>
+  <div id="gate">
+    <div class="gate-card">
+      <div class="logo">🛰️</div>
+      <h1>Drone Mission Planner</h1>
+      <p>Plan daily drone scanning missions — upload KML/KMZ, map your zones, navigate.</p>
+      <button id="signin">Sign in with Google</button>
+      <p class="note">Sign in with your Google account to save missions and files to your Drive.</p>
+    </div>
+  </div>
   <div id="side">
     <h1>🛰️ Drone Mission Planner<small>Upload KML/KMZ · plan the scan route · navigate</small></h1>
-    <div class="row">
-      <button id="signin">Sign in with Google</button>
-      <div id="auth"></div>
-    </div>
     <div class="row">
       <input id="files" type="file" accept=".kml,.kmz" multiple />
     </div>
