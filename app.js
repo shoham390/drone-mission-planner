@@ -1,5 +1,6 @@
 import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
+import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import {
   centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl,
 } from './geo.js';
@@ -10,18 +11,55 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file'; // per-file: no app 
 
 // ---- state ----
 let accessToken = null;
-let zones = []; // { id, name, layer, lat, lng, center, corner, feature }
-let numberLayers = [];
+let zones = []; // { id, name, lat, lng, center, corner, feature }
+let numberMarkers = [];
 let pointMode = 'center'; // nav-point per zone: 'center' (centroid) or 'corner' (first vertex)
-const satellite = L.tileLayer(
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  { attribution: 'Esri', maxZoom: 19 });
-const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap', maxZoom: 19 });
-const map = L.map('map', { layers: [satellite] }).setView([32.08, 34.78], 8);
-L.control.layers({ Satellite: satellite, Street: street }).addTo(map);
+
+// ---- map: MapLibre GL (WebGL) — Esri imagery + free DEM for 3D terrain + hillshade ----
+// ponytail: DEM is AWS's open Terrain Tiles (terrarium), keyless. If it ever 404s,
+// swap the dem source URL — terrain/hillshade just go flat, the map still works.
+const DEM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+const EXAG = 1.4;
+const map = new maplibregl.Map({
+  container: 'map', center: [34.78, 32.08], zoom: 7, pitch: 0, maxPitch: 85,
+  style: {
+    version: 8,
+    sources: {
+      sat: { type: 'raster', tileSize: 256, attribution: 'Esri', maxzoom: 19,
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
+      dem: { type: 'raster-dem', tileSize: 256, encoding: 'terrarium', maxzoom: 15, tiles: [DEM] },
+    },
+    layers: [
+      { id: 'sat', type: 'raster', source: 'sat' },
+      { id: 'hills', type: 'hillshade', source: 'dem', paint: { 'hillshade-exaggeration': 0.3 } },
+    ],
+    terrain: { source: 'dem', exaggeration: EXAG },
+  },
+});
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left'); // zoom + tilt/compass
+map.addControl(new maplibregl.TerrainControl({ source: 'dem', exaggeration: EXAG }), 'top-left'); // 3D on/off
+map.on('load', () => {
+  map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones',
+    paint: { 'fill-color': '#22e0e0', 'fill-opacity': 0.18 } });
+  map.addLayer({ id: 'zones-line', type: 'line', source: 'zones',
+    paint: { 'line-color': '#22e0e0', 'line-width': 2 } });
+  drawZones(); // zones may have loaded before the style was ready
+});
 
 const $ = (id) => document.getElementById(id);
+
+// push current zones into the map source + frame them
+function drawZones() {
+  const src = map.getSource('zones');
+  if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
+}
+function fitZones() {
+  if (!zones.length) return;
+  const b = new maplibregl.LngLatBounds();
+  for (const z of zones) for (const [x, y] of z.feature.geometry.coordinates[0]) b.extend([x, y]);
+  map.fitBounds(b, { padding: 40, duration: 600 });
+}
 
 // ---- auth ----
 let tokenClient;
@@ -32,7 +70,7 @@ function initAuth() {
     callback: (resp) => {
       accessToken = resp.access_token;
       $('gate').style.display = 'none'; // enter the app
-      map.invalidateSize();
+      map.resize(); // container sized after the gate hid
       $('save').disabled = false;
       $('load').disabled = false;
     },
@@ -73,21 +111,16 @@ function addZonesFromGeoJSON(gj) {
       const center = { lat: clat, lng: clng };
       const corner = { lat: ring[0][1], lng: ring[0][0] }; // ponytail: first vertex = the corner
       const active = pointMode === 'corner' ? corner : center;
-      const layer = L.polygon(ring.map(([x, y]) => [y, x]), {
-        color: '#22e0e0', weight: 2, fillColor: '#22e0e0', fillOpacity: 0.18,
-      }).addTo(map);
       zones.push({
         id: crypto.randomUUID(),
         name: rings.length > 1 ? `${base} (${i + 1})` : base,
-        layer, lat: active.lat, lng: active.lng, center, corner,
+        lat: active.lat, lng: active.lng, center, corner,
         feature: { type: 'Feature', properties: { name: base }, geometry: { type: 'Polygon', coordinates: [ring] } },
       });
     });
   }
-  if (zones.length) {
-    map.invalidateSize(); // container may have sized after map init (panels/tabs)
-    map.fitBounds(L.featureGroup(zones.map((z) => z.layer)).getBounds().pad(0.1));
-  }
+  drawZones();
+  fitZones();
   render();
 }
 
@@ -110,11 +143,13 @@ $('files').onchange = async (e) => {
 function planRoute() {
   if (!zones.length) return;
   zones = orderByNearestNeighbor(zones);
-  numberLayers.forEach((l) => map.removeLayer(l));
-  numberLayers = zones.map((z, i) =>
-    L.marker([z.lat, z.lng], {
-      icon: L.divIcon({ className: 'num-icon', html: i + 1, iconSize: [24, 24] }),
-    }).addTo(map));
+  numberMarkers.forEach((m) => m.remove());
+  numberMarkers = zones.map((z, i) => {
+    const el = document.createElement('div');
+    el.className = 'num-icon';
+    el.textContent = i + 1;
+    return new maplibregl.Marker({ element: el }).setLngLat([z.lng, z.lat]).addTo(map);
+  });
   const link = $('routelink');
   link.href = mapsRouteUrl(zones);
   link.style.display = 'inline';
@@ -224,9 +259,8 @@ async function loadMission(id) {
   const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
     { headers: { Authorization: `Bearer ${accessToken}` } });
   const doc = await r.json();
-  zones.forEach((z) => map.removeLayer(z.layer));
-  numberLayers.forEach((l) => map.removeLayer(l));
-  zones = []; numberLayers = [];
+  numberMarkers.forEach((m) => m.remove());
+  zones = []; numberMarkers = [];
   addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) });
   $('plan').click();
 }
