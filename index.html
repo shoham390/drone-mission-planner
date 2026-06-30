@@ -10,9 +10,10 @@
             --muted: #7b97a6; --accent: #22e0e0; --blue: #06cdd8;
             --glow: 0 0 14px rgba(34,224,224,.45); }
     * { box-sizing: border-box; }
-    html, body { overflow: hidden; overscroll-behavior: none; } /* lock the page; only sections scroll */
+    html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+    /* position:fixed is the only reliable page-scroll lock on iOS Safari (overflow:hidden isn't). */
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: row-reverse;
-           height: 100vh; height: 100dvh; width: 100vw; background: var(--bg); color: var(--text); }
+           position: fixed; inset: 0; height: 100dvh; width: 100%; background: var(--bg); color: var(--text); }
     #side { width: 340px; flex: none; padding: 18px; overflow-y: auto; background: var(--panel);
             border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
     #map { flex: 1; }
