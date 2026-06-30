@@ -167,13 +167,23 @@ async function fileToGeoJSON(file) {
   return kml(doc);
 }
 
+const ringSig = (ring) => ring.map((c) => c.join(',')).join(' ');
+
 function addZonesFromGeoJSON(gj, fileLabel) {
   // collect (base name, ring) for every polygon; base falls back to the filename
   // when the placemark name is generic ("Polygon 1") or missing.
+  // Skip rings identical to one already loaded — some files repeat the same
+  // polygon twice (and re-uploading a file would otherwise double it).
+  const seenSig = new Set(zones.map((z) => ringSig(z.feature.geometry.coordinates[0])));
   const items = [];
   for (const f of gj.features || []) {
     const base = featureName(f.properties, fileLabel || `Zone ${zones.length + items.length + 1}`);
-    for (const ring of polygonRings(f.geometry)) items.push({ base, ring });
+    for (const ring of polygonRings(f.geometry)) {
+      const sig = ringSig(ring);
+      if (seenSig.has(sig)) continue;
+      seenSig.add(sig);
+      items.push({ base, ring });
+    }
   }
   // number duplicates so two "Polygon 1/2" from סכנין.kmz become "סכנין 1", "סכנין 2"
   const total = {}; for (const it of items) total[it.base] = (total[it.base] || 0) + 1;
