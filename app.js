@@ -66,7 +66,7 @@ let coordPin;
 function showCoord() {
   const { lng, lat } = coordPin.getLngLat();
   const t = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  coordPin.getPopup().setHTML(`<span class="coord" title="Click to copy" data-c="${t}">📍 ${t}</span>`);
+  coordPin.getPopup().setHTML(`<span class="coordtxt">${t}</span><button class="copybtn" data-c="${t}">Copy</button>`);
   if (!coordPin.getPopup().isOpen()) coordPin.togglePopup();
 }
 map.on('click', (e) => {
@@ -78,9 +78,11 @@ map.on('click', (e) => {
   coordPin.setLngLat(e.lngLat).addTo(map);
   showCoord();
 });
-document.addEventListener('click', (e) => { // copy coords when the popup text is tapped
-  const el = e.target.closest('.coord');
-  if (el) navigator.clipboard?.writeText(el.dataset.c);
+document.addEventListener('click', (e) => { // Copy button in the coordinate popup
+  const btn = e.target.closest('.copybtn');
+  if (!btn) return;
+  navigator.clipboard?.writeText(btn.dataset.c);
+  btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
 });
 
 // ---- auth ----
