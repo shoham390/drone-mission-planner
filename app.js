@@ -10,8 +10,9 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file'; // per-file: no app 
 
 // ---- state ----
 let accessToken = null;
-let zones = []; // { id, name, layer, lat, lng, feature }
+let zones = []; // { id, name, layer, lat, lng, center, corner, feature }
 let numberLayers = [];
+let pointMode = 'center'; // nav-point per zone: 'center' (centroid) or 'corner' (first vertex)
 const satellite = L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   { attribution: 'Esri', maxZoom: 19 });
@@ -67,14 +68,17 @@ function addZonesFromGeoJSON(gj) {
     const rings = polygonRings(f.geometry); // one zone per polygon — handles MultiPolygon/collections
     const base = (f.properties && f.properties.name) || `Zone ${zones.length + 1}`;
     rings.forEach((ring, i) => {
-      const [lng, lat] = centroid(ring);
+      const [clng, clat] = centroid(ring);
+      const center = { lat: clat, lng: clng };
+      const corner = { lat: ring[0][1], lng: ring[0][0] }; // ponytail: first vertex = the corner
+      const active = pointMode === 'corner' ? corner : center;
       const layer = L.polygon(ring.map(([x, y]) => [y, x]), {
         color: '#f59e0b', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.18,
       }).addTo(map);
       zones.push({
         id: crypto.randomUUID(),
         name: rings.length > 1 ? `${base} (${i + 1})` : base,
-        layer, lat, lng,
+        layer, lat: active.lat, lng: active.lng, center, corner,
         feature: { type: 'Feature', properties: { name: base }, geometry: { type: 'Polygon', coordinates: [ring] } },
       });
     });
@@ -102,7 +106,7 @@ $('files').onchange = async (e) => {
 };
 
 // ---- planning ----
-$('plan').onclick = () => {
+function planRoute() {
   if (!zones.length) return;
   zones = orderByNearestNeighbor(zones);
   numberLayers.forEach((l) => map.removeLayer(l));
@@ -114,7 +118,17 @@ $('plan').onclick = () => {
   link.href = mapsRouteUrl(zones);
   link.style.display = 'inline';
   render();
+}
+$('plan').onclick = planRoute;
+
+$('ptmode').onclick = () => {
+  pointMode = pointMode === 'center' ? 'corner' : 'center';
+  $('ptmode').textContent = pointMode === 'corner' ? '📐 Pin: Corner' : '📍 Pin: Center';
+  for (const z of zones) { const p = z[pointMode]; z.lat = p.lat; z.lng = p.lng; }
+  if (numberLayers.length) planRoute(); else render(); // refresh markers/links to the new point
 };
+
+$('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY-MM-DD
 
 function render() {
   $('list').innerHTML = '';
