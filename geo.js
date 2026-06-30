@@ -83,3 +83,15 @@ export function mapsRouteUrl(ordered) {
   if (wp) u += `&waypoints=${encodeURIComponent(wp)}`;
   return u;
 }
+
+// Decode KML/KMZ bytes honoring the file's real encoding so non-ASCII names
+// (Hebrew, etc.) survive verbatim: UTF-16 via BOM, else the XML prolog's
+// declared encoding (e.g. windows-1255), defaulting to UTF-8.
+export function decodeXml(bytes) {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes);
+  const head = new TextDecoder('ascii').decode(bytes.subarray(0, 200));
+  const label = (head.match(/encoding=["']([\w-]+)["']/i)?.[1] || 'utf-8').toLowerCase();
+  try { return new TextDecoder(label).decode(bytes); }
+  catch { return new TextDecoder('utf-8').decode(bytes); } // unknown label -> utf-8
+}

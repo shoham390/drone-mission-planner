@@ -2,7 +2,7 @@ import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml,
 } from './geo.js';
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -37,7 +37,7 @@ const map = new maplibregl.Map({
   },
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left'); // zoom + tilt/compass
-map.addControl(new maplibregl.TerrainControl({ source: 'dem', exaggeration: EXAG }), 'top-left'); // 3D on/off
+// ponytail: terrain is always on (set in the style below) — no toggle control to turn it off.
 map.on('load', () => {
   map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones',
@@ -91,16 +91,30 @@ function dropPin(lngLat) {
   coordPin.setLngLat(lngLat).addTo(map);
   showCoord();
 }
-// hold ~450ms without panning to drop the pin; any pan/zoom/release cancels.
-let pressTimer;
+// Long-press (~450ms held still) drops the pin; moving the finger >10px or
+// releasing early cancels, so panning/pinching never drops one. Tap an existing
+// pin to remove it.
+let pressTimer, pressPt, justDropped = false;
+const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
 const startPress = (e) => {
   if (e.originalEvent.target.closest('.maplibregl-marker')) return; // not when grabbing a marker
-  pressTimer = setTimeout(() => dropPin(e.lngLat), 450);
+  justDropped = false;
+  pressPt = e.point;
+  pressTimer = setTimeout(() => { dropPin(e.lngLat); justDropped = true; }, 450);
 };
-const cancelPress = () => clearTimeout(pressTimer);
+const movePress = (e) => {
+  if (pressTimer && Math.hypot(e.point.x - pressPt.x, e.point.y - pressPt.y) > 10) cancelPress();
+};
 map.on('mousedown', startPress);
 map.on('touchstart', startPress);
-for (const ev of ['mouseup', 'touchend', 'move']) map.on(ev, cancelPress);
+map.on('mousemove', movePress);
+map.on('touchmove', movePress);
+map.on('mouseup', cancelPress);
+map.on('touchend', cancelPress);
+map.on('click', () => {
+  if (justDropped) { justDropped = false; return; } // the long-press that just dropped it
+  if (coordPin) { coordPin.remove(); coordPin = null; } // tap clears the pin
+});
 document.addEventListener('click', (e) => { // Copy button in the coordinate popup
   const btn = e.target.closest('.copybtn');
   if (!btn) return;
@@ -135,16 +149,14 @@ async function fileToGeoJSON(file) {
   // Detect KMZ by content, not extension: a zip starts with "PK". Plenty of .kmz
   // files are actually plain KML XML (renamed/exported), and some .kml are zipped.
   const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
-  let xmlText;
+  let xmlBytes = bytes;
   if (isZip) {
     const zip = await JSZip.loadAsync(buf);
     const entry = Object.values(zip.files).find((f) => f.name.toLowerCase().endsWith('.kml'));
     if (!entry) throw new Error(`no .kml inside ${file.name}`);
-    xmlText = await entry.async('string');
-  } else {
-    xmlText = new TextDecoder().decode(bytes); // strips a UTF-8 BOM if present
+    xmlBytes = await entry.async('uint8array'); // raw bytes so decodeXml can honor the encoding
   }
-  const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  const doc = new DOMParser().parseFromString(decodeXml(xmlBytes), 'text/xml');
   if (doc.querySelector('parsererror')) throw new Error('not valid KML/XML');
   return kml(doc);
 }
