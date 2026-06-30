@@ -61,6 +61,28 @@ function fitZones() {
   map.fitBounds(b, { padding: 40, duration: 600 });
 }
 
+// ---- click anywhere to drop a draggable coordinate pin (tap the popup to copy) ----
+let coordPin;
+function showCoord() {
+  const { lng, lat } = coordPin.getLngLat();
+  const t = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  coordPin.getPopup().setHTML(`<span class="coord" title="Click to copy" data-c="${t}">📍 ${t}</span>`);
+  if (!coordPin.getPopup().isOpen()) coordPin.togglePopup();
+}
+map.on('click', (e) => {
+  if (!coordPin) {
+    coordPin = new maplibregl.Marker({ color: '#22e0e0', draggable: true })
+      .setPopup(new maplibregl.Popup({ closeButton: false, offset: 26 }));
+    coordPin.on('drag', showCoord);
+  }
+  coordPin.setLngLat(e.lngLat).addTo(map);
+  showCoord();
+});
+document.addEventListener('click', (e) => { // copy coords when the popup text is tapped
+  const el = e.target.closest('.coord');
+  if (el) navigator.clipboard?.writeText(el.dataset.c);
+});
+
 // ---- auth ----
 let tokenClient;
 function initAuth() {
