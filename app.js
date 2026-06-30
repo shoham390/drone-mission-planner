@@ -54,6 +54,12 @@ function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
 }
+// frame a single zone's polygon (used when its list row is tapped)
+function flyToZone(z) {
+  const b = new maplibregl.LngLatBounds();
+  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
+  map.fitBounds(b, { padding: 80, maxZoom: 17, duration: 600 });
+}
 function fitZones(opts) {
   if (!zones.length) return;
   const b = new maplibregl.LngLatBounds();
@@ -240,6 +246,7 @@ function render() {
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
       `<a class="navico" title="Open polygon in Google Earth (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
+    div.querySelector('b').addEventListener('click', () => flyToZone(z)); // tap the name to zoom to it
     $('list').appendChild(div);
   });
 }
