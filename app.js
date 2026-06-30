@@ -291,7 +291,9 @@ $('save').onclick = async () => {
 // list app-created mission files into the dropdown. selectFirst: auto-load the top one.
 async function refreshMissions(selectFirst) {
   const r = await fetch(
-    'https://www.googleapis.com/drive/v3/files?pageSize=100&fields=files(id,name)',
+    // q=trashed=false: Drive v3 lists trashed files by default, so a just-deleted
+    // mission would reappear here without this filter.
+    'https://www.googleapis.com/drive/v3/files?pageSize=100&q=trashed%3Dfalse&fields=files(id,name)',
     { headers: { Authorization: `Bearer ${accessToken}` } });
   const { files = [] } = await r.json();
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
