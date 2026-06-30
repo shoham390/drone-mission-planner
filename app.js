@@ -1,9 +1,10 @@
 import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
-import {
+// import geo.js with app.js's own ?v= cache-buster so it never serves stale
+const {
   centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName,
-} from './geo.js';
+} = await import('./geo.js' + new URL(import.meta.url).search);
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
 const CLIENT_ID = '462312273267-hcab3itc0093mj9si0f76oaufvecos2t.apps.googleusercontent.com';
