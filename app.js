@@ -131,6 +131,9 @@ $('ptmode').onclick = () => {
 
 $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY-MM-DD
 
+const MAPS_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+const WAZE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
+
 function render() {
   $('list').innerHTML = '';
   zones.forEach((z, i) => {
@@ -138,8 +141,8 @@ function render() {
     div.className = 'zone';
     div.innerHTML =
       `<b><span class="num">${i + 1}</span> ${z.name}</b>` +
-      `<a href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">Google Maps</a>` +
-      `<a href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">Waze</a>`;
+      `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
+      `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>`;
     $('list').appendChild(div);
   });
 }
