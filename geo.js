@@ -15,6 +15,16 @@ export function centroid(ring) {
   return [lng / pts.length, lat / pts.length];
 }
 
+// All polygon outer-rings in a geometry — Polygon, MultiPolygon, or nested
+// GeometryCollection. Non-polygon geometries (points/lines) yield none.
+export function polygonRings(geom) {
+  if (!geom) return [];
+  if (geom.type === 'Polygon') return [geom.coordinates[0]];
+  if (geom.type === 'MultiPolygon') return geom.coordinates.map((p) => p[0]);
+  if (geom.type === 'GeometryCollection') return geom.geometries.flatMap(polygonRings);
+  return [];
+}
+
 const R = 6371; // km
 export function haversine(a, b) {
   const rad = (d) => (d * Math.PI) / 180;

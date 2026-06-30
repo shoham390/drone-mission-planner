@@ -1,6 +1,14 @@
 // Run: node geo.test.mjs
 import assert from 'node:assert/strict';
-import { centroid, haversine, orderByNearestNeighbor, mapsRouteUrl } from './geo.js';
+import { centroid, haversine, orderByNearestNeighbor, mapsRouteUrl, polygonRings } from './geo.js';
+
+// polygonRings: one ring per polygon, ignores non-polygons, recurses collections
+assert.equal(polygonRings({ type: 'MultiPolygon', coordinates: [[[[0, 0]]], [[[1, 1]]]] }).length, 2);
+assert.equal(polygonRings({ type: 'GeometryCollection', geometries: [
+  { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+  { type: 'Point', coordinates: [5, 5] },
+] }).length, 1);
+assert.equal(polygonRings({ type: 'LineString', coordinates: [[0, 0], [1, 1]] }).length, 0);
 
 // centroid of a unit square (closed ring) is its center
 assert.deepEqual(centroid([[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]), [1, 1]);

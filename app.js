@@ -1,7 +1,7 @@
 import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
 import {
-  centroid, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, mapsRouteUrl,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, mapsRouteUrl,
 } from './geo.js';
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -43,37 +43,40 @@ $('signin').onclick = () => {
 
 // ---- KML/KMZ -> GeoJSON ----
 async function fileToGeoJSON(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  // Detect KMZ by content, not extension: a zip starts with "PK". Plenty of .kmz
+  // files are actually plain KML XML (renamed/exported), and some .kml are zipped.
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
   let xmlText;
-  if (file.name.toLowerCase().endsWith('.kmz')) {
-    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  if (isZip) {
+    const zip = await JSZip.loadAsync(buf);
     const entry = Object.values(zip.files).find((f) => f.name.toLowerCase().endsWith('.kml'));
     if (!entry) throw new Error(`no .kml inside ${file.name}`);
     xmlText = await entry.async('string');
   } else {
-    xmlText = await file.text();
+    xmlText = new TextDecoder().decode(bytes); // strips a UTF-8 BOM if present
   }
   const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('not valid KML/XML');
   return kml(doc);
-}
-
-function outerRing(geom) {
-  if (geom.type === 'Polygon') return geom.coordinates[0];
-  if (geom.type === 'MultiPolygon') return geom.coordinates[0][0];
-  return null;
 }
 
 function addZonesFromGeoJSON(gj) {
   for (const f of gj.features || []) {
-    const ring = f.geometry && outerRing(f.geometry);
-    if (!ring) continue; // ponytail: polygons only — points/lines aren't scan zones
-    const [lng, lat] = centroid(ring);
-    const layer = L.geoJSON(f, {
-      style: { color: '#f59e0b', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.18 },
-    }).addTo(map);
-    zones.push({
-      id: crypto.randomUUID(),
-      name: (f.properties && f.properties.name) || `Zone ${zones.length + 1}`,
-      layer, lat, lng, feature: f,
+    const rings = polygonRings(f.geometry); // one zone per polygon — handles MultiPolygon/collections
+    const base = (f.properties && f.properties.name) || `Zone ${zones.length + 1}`;
+    rings.forEach((ring, i) => {
+      const [lng, lat] = centroid(ring);
+      const layer = L.polygon(ring.map(([x, y]) => [y, x]), {
+        color: '#f59e0b', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.18,
+      }).addTo(map);
+      zones.push({
+        id: crypto.randomUUID(),
+        name: rings.length > 1 ? `${base} (${i + 1})` : base,
+        layer, lat, lng,
+        feature: { type: 'Feature', properties: { name: base }, geometry: { type: 'Polygon', coordinates: [ring] } },
+      });
     });
   }
   if (zones.length) {
@@ -87,8 +90,10 @@ function addZonesFromGeoJSON(gj) {
 $('files').onchange = async (e) => {
   for (const file of e.target.files) {
     try {
+      const before = zones.length;
       addZonesFromGeoJSON(await fileToGeoJSON(file));
-      if (accessToken) await driveUploadBlob(file);
+      if (zones.length === before) alert(`${file.name}: no polygons found`);
+      else if (accessToken) await driveUploadBlob(file);
     } catch (err) {
       alert(`${file.name}: ${err.message}`);
     }
