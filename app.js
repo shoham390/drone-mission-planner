@@ -98,26 +98,28 @@ function dropPin(lngLat) {
   coordPin.setLngLat(lngLat).addTo(map);
   showCoord();
 }
-// Long-press (~450ms held still) drops the pin; moving the finger >10px or
-// releasing early cancels, so panning/pinching never drops one. Tap an existing
-// pin to remove it.
+// Press and hold ~500ms with ONE finger to drop the pin (like Google Earth/Maps).
+// It never pops up during navigation: a second finger (pinch/tilt/rotate), any
+// map pan/zoom, finger movement >8px, or an early release all cancel it.
+// Tap the map to clear an existing pin.
 let pressTimer, pressPt, justDropped = false;
 const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
 const startPress = (e) => {
-  if (e.originalEvent.target.closest('.maplibregl-marker')) return; // not when grabbing a marker
+  if (e.originalEvent.touches && e.originalEvent.touches.length > 1) return cancelPress(); // multi-touch = navigation
+  if (e.originalEvent.target.closest('.maplibregl-marker')) return;                        // grabbing the pin
   justDropped = false;
   pressPt = e.point;
-  pressTimer = setTimeout(() => { dropPin(e.lngLat); justDropped = true; }, 450);
+  pressTimer = setTimeout(() => { dropPin(e.lngLat); justDropped = true; pressTimer = null; }, 500);
 };
 const movePress = (e) => {
-  if (pressTimer && Math.hypot(e.point.x - pressPt.x, e.point.y - pressPt.y) > 10) cancelPress();
+  if (pressTimer && Math.hypot(e.point.x - pressPt.x, e.point.y - pressPt.y) > 8) cancelPress();
 };
 map.on('mousedown', startPress);
 map.on('touchstart', startPress);
 map.on('mousemove', movePress);
 map.on('touchmove', movePress);
-map.on('mouseup', cancelPress);
-map.on('touchend', cancelPress);
+// release, a second finger, or the start of any pan/zoom/rotate/tilt cancels it
+for (const ev of ['mouseup', 'touchend', 'touchcancel', 'dragstart', 'zoomstart', 'rotatestart', 'pitchstart']) map.on(ev, cancelPress);
 map.on('click', () => {
   if (justDropped) { justDropped = false; return; } // the long-press that just dropped it
   if (coordPin) { coordPin.remove(); coordPin = null; } // tap clears the pin
