@@ -115,10 +115,10 @@
       <label class="field-label">Project name</label>
       <div class="row">
         <input id="mname" placeholder="project name" />
-        <button id="save" disabled>Save mission</button>
       </div>
     </div>
     <div class="row">
+      <button id="save" disabled>Save mission</button>
       <button id="load" disabled>Load missions…</button>
       <select id="missions" style="display:none"></select>
       <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
@@ -131,7 +131,8 @@
         <span>Corner</span>
       </div>
     </div>
-    <p class="hint">Tap the map to drop a pin & read its coordinates.</p>
+    <p class="hint">Tap the map to drop a pin & read its coordinates.<br>
+      Right-drag (desktop) or two-finger drag (phone) to tilt &amp; rotate the 3D view.</p>
     <div id="list"></div>
   </div>
   <div id="map"></div>
