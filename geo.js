@@ -62,6 +62,10 @@ export const mapsNavUrl = (lat, lng) =>
 export const wazeNavUrl = (lat, lng) =>
   `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
 
+// Google Earth web, camera parked over the point. 0a=ground, 1500d=eye distance (m).
+export const earthNavUrl = (lat, lng) =>
+  `https://earth.google.com/web/@${lat},${lng},0a,1500d,35y,0h,0t,0r`;
+
 // One Google Maps directions link covering the whole ordered route.
 export function mapsRouteUrl(ordered) {
   if (!ordered.length) return '';

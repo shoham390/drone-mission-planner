@@ -1,7 +1,7 @@
 import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
 import {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, mapsRouteUrl,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, earthNavUrl, mapsRouteUrl,
 } from './geo.js';
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -132,6 +132,7 @@ $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY
 
 const MAPS_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
 const WAZE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
+const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34a853" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4.2" ry="9"/><path d="M3 12h18"/></svg>';
 
 function render() {
   $('list').innerHTML = '';
@@ -141,7 +142,8 @@ function render() {
     div.innerHTML =
       `<b><span class="num">${i + 1}</span> ${z.name}</b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
-      `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>`;
+      `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
+      `<a class="navico" title="View in Google Earth" href="${earthNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${EARTH_ICON}</a>`;
     $('list').appendChild(div);
   });
 }
@@ -183,19 +185,37 @@ $('save').onclick = async () => {
   alert(`Saved ${name} to Drive.`);
 };
 
-// load: list app-created files, filter missions, restore the picked one
-$('load').onclick = async () => {
+// list app-created mission files into the dropdown. selectFirst: auto-load the top one.
+async function refreshMissions(selectFirst) {
   const r = await fetch(
     'https://www.googleapis.com/drive/v3/files?pageSize=100&fields=files(id,name)',
     { headers: { Authorization: `Bearer ${accessToken}` } });
   const { files = [] } = await r.json();
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
-  if (!missions.length) return alert('No saved missions found.');
   const sel = $('missions');
+  if (!missions.length) {
+    sel.style.display = $('delmission').style.display = 'none';
+    return alert('No saved missions found.');
+  }
   sel.innerHTML = missions.map((f) => `<option value="${f.id}">${f.name}</option>`).join('');
-  sel.style.display = 'inline';
+  sel.style.display = $('delmission').style.display = 'inline';
   sel.onchange = () => loadMission(sel.value);
-  loadMission(missions[0].id);
+  if (selectFirst) loadMission(missions[0].id);
+}
+$('load').onclick = () => refreshMissions(true);
+
+// delete the selected mission — trash, not permanent: recoverable from Drive trash.
+$('delmission').onclick = async () => {
+  const sel = $('missions');
+  const name = sel.options[sel.selectedIndex]?.text;
+  if (!sel.value || !confirm(`Delete "${name}"? It moves to your Google Drive trash.`)) return;
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${sel.value}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  });
+  if (!r.ok) return alert(`Delete failed (${r.status})`);
+  refreshMissions(false); // refresh the list; don't auto-load anything
 };
 
 async function loadMission(id) {
