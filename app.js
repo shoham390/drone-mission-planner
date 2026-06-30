@@ -122,9 +122,8 @@ function planRoute() {
 }
 $('plan').onclick = planRoute;
 
-$('ptmode').onclick = () => {
-  pointMode = pointMode === 'center' ? 'corner' : 'center';
-  $('ptmode').textContent = pointMode === 'corner' ? '📐 Pin: Corner' : '📍 Pin: Center';
+$('ptmode').onchange = () => {
+  pointMode = $('ptmode').checked ? 'corner' : 'center'; // slider: off=center, on=corner
   for (const z of zones) { const p = z[pointMode]; z.lat = p.lat; z.lng = p.lng; }
   if (numberLayers.length) planRoute(); else render(); // refresh markers/links to the new point
 };
