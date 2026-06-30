@@ -225,7 +225,7 @@ $('plan').onclick = planRoute;
 $('ptmode').onchange = () => {
   pointMode = $('ptmode').checked ? 'corner' : 'center'; // slider: off=center, on=corner
   for (const z of zones) { const p = z[pointMode]; z.lat = p.lat; z.lng = p.lng; }
-  if (numberLayers.length) planRoute(); else render(); // refresh markers/links to the new point
+  if (numberMarkers.length) planRoute(); else render(); // refresh markers/links to the new point
 };
 
 $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY-MM-DD
