@@ -1,7 +1,7 @@
 import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
 import {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, earthNavUrl, mapsRouteUrl,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl,
 } from './geo.js';
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -139,11 +139,13 @@ function render() {
   zones.forEach((z, i) => {
     const div = document.createElement('div');
     div.className = 'zone';
+    const kml = 'data:application/vnd.google-earth.kml+xml;charset=utf-8,' +
+      encodeURIComponent(zoneKml(z.name, z.feature.geometry.coordinates[0]));
     div.innerHTML =
       `<b><span class="num">${i + 1}</span> ${z.name}</b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
-      `<a class="navico" title="View in Google Earth" href="${earthNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${EARTH_ICON}</a>`;
+      `<a class="navico" title="Open polygon in Google Earth (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
     $('list').appendChild(div);
   });
 }

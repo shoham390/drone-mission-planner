@@ -62,9 +62,17 @@ export const mapsNavUrl = (lat, lng) =>
 export const wazeNavUrl = (lat, lng) =>
   `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
 
-// Google Earth web, camera parked over the point. 0a=ground, 1500d=eye distance (m).
-export const earthNavUrl = (lat, lng) =>
-  `https://earth.google.com/web/@${lat},${lng},0a,1500d,35y,0h,0t,0r`;
+// A one-polygon KML for a zone — Google Earth Web has no URL param to load geometry,
+// so we hand it a file. ring: [[lng,lat], ...] (GeoJSON order); KML wants "lng,lat,0".
+export function zoneKml(name, ring) {
+  const coords = ring.map(([x, y]) => `${x},${y},0`).join(' ');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>${name}</name>` +
+    `<Style><LineStyle><color>ffe0e022</color><width>2</width></LineStyle>` +
+    `<PolyStyle><color>4de0e022</color></PolyStyle></Style>` +
+    `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}` +
+    `</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Document></kml>`;
+}
 
 // One Google Maps directions link covering the whole ordered route.
 export function mapsRouteUrl(ordered) {

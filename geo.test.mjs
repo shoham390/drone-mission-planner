@@ -1,6 +1,6 @@
 // Run: node geo.test.mjs
 import assert from 'node:assert/strict';
-import { centroid, haversine, orderByNearestNeighbor, mapsRouteUrl, polygonRings } from './geo.js';
+import { centroid, haversine, orderByNearestNeighbor, mapsRouteUrl, polygonRings, zoneKml } from './geo.js';
 
 // polygonRings: one ring per polygon, ignores non-polygons, recurses collections
 assert.equal(polygonRings({ type: 'MultiPolygon', coordinates: [[[[0, 0]]], [[[1, 1]]]] }).length, 2);
@@ -30,5 +30,11 @@ const url = mapsRouteUrl([
 ]);
 assert.ok(url.includes('destination=3,3'));
 assert.ok(url.includes('waypoints='));
+
+// zoneKml: GeoJSON ring [lng,lat] -> KML "lng,lat,0" coords inside a Polygon
+const k = zoneKml('Z1', [[34, 32], [35, 32], [35, 33], [34, 32]]);
+assert.ok(k.includes('<name>Z1</name>'));
+assert.ok(k.includes('34,32,0 35,32,0 35,33,0 34,32,0'));
+assert.ok(k.includes('<Polygon>'));
 
 console.log('ok');
