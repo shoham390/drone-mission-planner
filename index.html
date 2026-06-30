@@ -10,8 +10,9 @@
             --muted: #7b97a6; --accent: #22e0e0; --blue: #06cdd8;
             --glow: 0 0 14px rgba(34,224,224,.45); }
     * { box-sizing: border-box; }
+    html, body { overflow: hidden; overscroll-behavior: none; } /* lock the page; only sections scroll */
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: row-reverse;
-           height: 100vh; width: 100vw; background: var(--bg); color: var(--text); }
+           height: 100vh; height: 100dvh; width: 100vw; background: var(--bg); color: var(--text); }
     #side { width: 340px; flex: none; padding: 18px; overflow-y: auto; background: var(--panel);
             border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
     #map { flex: 1; }
@@ -88,9 +89,9 @@
     .sec { display: contents; }
     @media (max-width: 640px) {
       body { flex-direction: column-reverse; }      /* map on top, panel below */
-      #map { flex: none; height: 56vh; min-height: 0; }
+      #map { flex: none; height: 56dvh; min-height: 0; }
       #side {                                         /* panel = horizontal pager */
-        width: 100%; flex: none; height: 44vh; padding: 0; gap: 0;
+        width: 100%; flex: none; height: 44dvh; padding: 0; gap: 0;
         flex-direction: row; overflow-x: auto; overflow-y: hidden;
         scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
         border-left: none; border-top: 1px solid var(--line);
@@ -126,8 +127,6 @@
         <button id="plan" class="primary">Plan route</button>
         <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
       </div>
-    </div>
-    <div class="sec">
       <div class="field">
         <label class="field-label">Project name</label>
         <div class="row">
@@ -140,8 +139,6 @@
         <select id="missions" style="display:none"></select>
         <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
       </div>
-    </div>
-    <div class="sec">
       <div class="field">
         <label class="field-label">Pin location</label>
         <div class="row switchrow">
@@ -152,8 +149,6 @@
       </div>
       <p class="hint">Long-press the map to drop a pin & read its coordinates; tap it to remove.<br>
         Right-drag (desktop) or two-finger drag (phone) to tilt &amp; rotate the 3D view.</p>
-    </div>
-    <div class="sec">
       <div id="list"></div>
     </div>
   </div>
