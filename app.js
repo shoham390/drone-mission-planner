@@ -222,6 +222,16 @@ function planRoute() {
 }
 $('plan').onclick = planRoute;
 
+// wipe all loaded zones (in-memory only; saved missions & Drive files are untouched)
+$('clear').onclick = () => {
+  if (!zones.length || !confirm('Clear all zones from the map?')) return;
+  numberMarkers.forEach((m) => m.remove());
+  zones = []; numberMarkers = [];
+  drawZones();
+  $('routelink').style.display = 'none';
+  render();
+};
+
 $('ptmode').onchange = () => {
   pointMode = $('ptmode').checked ? 'corner' : 'center'; // slider: off=center, on=corner
   for (const z of zones) { const p = z[pointMode]; z.lat = p.lat; z.lng = p.lng; }
