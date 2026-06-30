@@ -74,7 +74,7 @@ function addZonesFromGeoJSON(gj) {
       const corner = { lat: ring[0][1], lng: ring[0][0] }; // ponytail: first vertex = the corner
       const active = pointMode === 'corner' ? corner : center;
       const layer = L.polygon(ring.map(([x, y]) => [y, x]), {
-        color: '#f59e0b', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.18,
+        color: '#22e0e0', weight: 2, fillColor: '#22e0e0', fillOpacity: 0.18,
       }).addTo(map);
       zones.push({
         id: crypto.randomUUID(),

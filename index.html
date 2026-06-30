@@ -6,15 +6,18 @@
   <title>Drone Mission Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    :root { --bg: #0b1220; --panel: #0f172a; --line: #1e293b; --text: #e2e8f0;
-            --muted: #94a3b8; --accent: #f59e0b; --blue: #3b82f6; }
+    :root { --bg: #050a12; --panel: #0a1320; --line: #123640; --text: #dcf4f7;
+            --muted: #7b97a6; --accent: #22e0e0; --blue: #06cdd8;
+            --glow: 0 0 14px rgba(34,224,224,.45); }
     * { box-sizing: border-box; }
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: row-reverse;
            height: 100vh; width: 100vw; background: var(--bg); color: var(--text); }
     #side { width: 340px; flex: none; padding: 18px; overflow-y: auto; background: var(--panel);
             border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
     #map { flex: 1; }
-    h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+    h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px;
+         color: var(--accent); text-shadow: var(--glow); }
+    h1 .drone { vertical-align: -4px; margin-right: 6px; }
     h1 small { display: block; font-size: 11px; font-weight: 400; color: var(--muted);
                letter-spacing: 0; margin-top: 2px; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -22,8 +25,11 @@
              background: #1e293b; color: var(--text); font: inherit; transition: .12s; }
     button:hover:not(:disabled) { background: #273449; border-color: #334155; }
     button:disabled { opacity: .4; cursor: not-allowed; }
-    button.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
-    button.primary:hover { background: #2f6fe0; }
+    button.primary { background: var(--blue); border-color: var(--blue); color: #04222a; font-weight: 700;
+                     box-shadow: var(--glow); }
+    button.primary:hover { background: #22e0e0; }
+    .drone { width: 22px; height: 22px; flex: none; filter: drop-shadow(var(--glow)); }
+    .gate-card .drone { width: 64px; height: 64px; }
     #signin { background: #fff; color: #1f2937; border-color: #fff; font-weight: 600; }
     input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
                     background: #0b1220; color: var(--text); font: inherit; }
@@ -77,7 +83,7 @@
 <body>
   <div id="gate">
     <div class="gate-card">
-      <div class="logo">🛰️</div>
+      <svg class="drone" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M6.6 6.6 9.5 9.5M17.4 6.6 14.5 9.5M6.6 17.4 9.5 14.5M17.4 17.4 14.5 14.5"/><rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.2"/></svg>
       <h1>Drone Mission Planner</h1>
       <p>Plan daily drone scanning missions — upload KML/KMZ, map your zones, navigate.</p>
       <button id="signin">Sign in with Google</button>
@@ -85,7 +91,7 @@
     </div>
   </div>
   <div id="side">
-    <h1>🛰️ Drone Mission Planner<small>Upload KML/KMZ · plan the scan route · navigate</small></h1>
+    <h1><svg class="drone" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M6.6 6.6 9.5 9.5M17.4 6.6 14.5 9.5M6.6 17.4 9.5 14.5M17.4 17.4 14.5 14.5"/><rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.2"/></svg>Drone Mission Planner<small>Upload KML/KMZ · plan the scan route · navigate</small></h1>
     <div class="row">
       <input id="files" type="file" accept=".kml,.kmz" multiple hidden />
       <label for="files" class="upload-btn">⬆ Upload KML / KMZ</label>
