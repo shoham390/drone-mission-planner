@@ -2,7 +2,7 @@ import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import { kml } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/+esm';
 import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 import {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName,
 } from './geo.js';
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -164,7 +164,7 @@ async function fileToGeoJSON(file) {
 function addZonesFromGeoJSON(gj) {
   for (const f of gj.features || []) {
     const rings = polygonRings(f.geometry); // one zone per polygon — handles MultiPolygon/collections
-    const base = (f.properties && f.properties.name) || `Zone ${zones.length + 1}`;
+    const base = featureName(f.properties, `Zone ${zones.length + 1}`);
     rings.forEach((ring, i) => {
       const [clng, clat] = centroid(ring);
       const center = { lat: clat, lng: clng };
