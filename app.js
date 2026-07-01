@@ -98,14 +98,23 @@ async function addAirspace() {
   });
   map.on('mouseenter', 'airspace-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'airspace-fill', () => { map.getCanvas().style.cursor = ''; });
+  applyAirFilter(); // sync with any switches toggled before the async load
 }
 
 const $ = (id) => document.getElementById(id);
 
-$('airtoggle').onchange = (e) => {
-  const v = e.target.checked ? 'visible' : 'none';
-  for (const id of ['airspace-fill', 'airspace-line']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
-};
+// one switch per category (CTR / P / R / border); filter both layers to the enabled set
+const airCats = new Set();
+function applyAirFilter() {
+  const f = ['in', ['get', 'cat'], ['literal', [...airCats]]];
+  for (const id of ['airspace-fill', 'airspace-line']) if (map.getLayer(id)) {
+    map.setFilter(id, f);
+    map.setLayoutProperty(id, 'visibility', airCats.size ? 'visible' : 'none');
+  }
+}
+for (const cat of ['CTR', 'P', 'R', 'border']) {
+  $('air-' + cat).onchange = (e) => { e.target.checked ? airCats.add(cat) : airCats.delete(cat); applyAirFilter(); };
+}
 
 // push current zones into the map source + frame them
 function drawZones() {
