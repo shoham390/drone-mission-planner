@@ -99,12 +99,13 @@ async function addAirspace() {
   map.on('mouseenter', 'airspace-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'airspace-fill', () => { map.getCanvas().style.cursor = ''; });
 }
+
+const $ = (id) => document.getElementById(id);
+
 $('airtoggle').onchange = (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   for (const id of ['airspace-fill', 'airspace-line']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
 };
-
-const $ = (id) => document.getElementById(id);
 
 // push current zones into the map source + frame them
 function drawZones() {
