@@ -393,12 +393,13 @@ $('save').onclick = async () => {
   alert(`Saved ${name} to Drive.`);
 };
 
-// list app-created mission files into the dropdown. selectFirst: auto-load the top one.
-async function refreshMissions(selectFirst) {
+// list all app-created mission files into the dropdown, newest first — just
+// shows them; picking one is what loads it (see sel.onchange below).
+async function refreshMissions() {
   const r = await fetch(
     // q=trashed=false: Drive v3 lists trashed files by default, so a just-deleted
     // mission would reappear here without this filter.
-    'https://www.googleapis.com/drive/v3/files?pageSize=100&q=trashed%3Dfalse&fields=files(id,name)',
+    'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=createdTime desc&q=trashed%3Dfalse&fields=files(id,name)',
     { headers: { Authorization: `Bearer ${accessToken}` } });
   const { files = [] } = await r.json();
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
@@ -412,9 +413,8 @@ async function refreshMissions(selectFirst) {
   sel.innerHTML = missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
   sel.style.display = $('delmission').style.display = 'inline';
   sel.onchange = () => loadMission(sel.value);
-  if (selectFirst) loadMission(missions[0].id);
 }
-$('load').onclick = () => refreshMissions(true);
+$('load').onclick = () => refreshMissions();
 
 // delete the selected mission — trash, not permanent: recoverable from Drive trash.
 $('delmission').onclick = async () => {
@@ -427,7 +427,7 @@ $('delmission').onclick = async () => {
     body: JSON.stringify({ trashed: true }),
   });
   if (!r.ok) return alert(`Delete failed (${r.status})`);
-  refreshMissions(false); // refresh the list; don't auto-load anything
+  refreshMissions(); // refresh the list; don't auto-load anything
 };
 
 async function loadMission(id) {
