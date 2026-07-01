@@ -88,11 +88,18 @@
     .gate-card .note { font-size: 12px; margin: 20px 0 0; }
     /* desktop: wrappers are invisible — children flow in the side column as before */
     .sec { display: contents; }
+    #dragbar { display: none; }                       /* desktop: no split handle */
     @media (max-width: 640px) {
       body { flex-direction: column-reverse; }      /* map on top, panel below */
-      #map { flex: none; height: 56dvh; min-height: 0; }
+      #map { flex: none; height: var(--maph, 56dvh); min-height: 0; }
+      #dragbar {                                      /* drag to resize map vs panel */
+        display: flex; align-items: center; justify-content: center; flex: none; height: 18px;
+        background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+        touch-action: none; cursor: row-resize;
+      }
+      #dragbar::before { content: ''; width: 44px; height: 4px; border-radius: 2px; background: var(--muted); }
       #side {                                         /* panel = horizontal pager */
-        width: 100%; flex: none; height: 44dvh; padding: 0; gap: 0;
+        width: 100%; flex: 1; height: auto; min-height: 0; padding: 0; gap: 0;
         flex-direction: row; overflow-x: auto; overflow-y: hidden;
         scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
         border-left: none; border-top: 1px solid var(--line);
@@ -154,6 +161,7 @@
       <div id="list"></div>
     </div>
   </div>
+  <div id="dragbar"></div>
   <div id="map"></div>
 
   <script src="https://accounts.google.com/gsi/client" async></script>
