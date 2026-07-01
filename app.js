@@ -80,17 +80,17 @@ map.on('load', () => {
 });
 
 // ---- Israel airspace overlay: CTR / prohibited / restricted (toggle in panel) ----
-// Source: OpenAIP (community aggregation of the official AIP), arcs pre-resolved to
-// polygons. PLANNING AID, NOT FOR CLEARANCE. Does NOT include danger areas (LLD) —
-// Israel's civil AIP lists none; the sporting-chart LLD zones are a separate publication.
-const AIR_COLOR = ['match', ['get', 'cat'], 'CTR', '#3b82f6', 'P', '#ef4444', 'R', '#f59e0b', '#888'];
+// Sources: LLP/LLR = official Israel eAIP ENR 5.1 AIRAC 2025-10-02 (exact coords, arcs
+// computed); CTR = OpenAIP; border = standard state boundary (reference only).
+// PLANNING AID, NOT FOR CLEARANCE. No danger areas (LLD) — Israel's civil AIP lists none.
+const AIR_COLOR = ['match', ['get', 'cat'], 'CTR', '#3b82f6', 'P', '#ef4444', 'R', '#f59e0b', 'border', '#22c55e', '#888'];
 async function addAirspace() {
   const data = await (await fetch('./airspace.geojson' + new URL(import.meta.url).search)).json();
   map.addSource('airspace', { type: 'geojson', data });
   map.addLayer({ id: 'airspace-fill', type: 'fill', source: 'airspace', layout: { visibility: 'none' },
     paint: { 'fill-color': AIR_COLOR, 'fill-opacity': ['match', ['get', 'cat'], 'P', 0.22, 0.1] } });
   map.addLayer({ id: 'airspace-line', type: 'line', source: 'airspace', layout: { visibility: 'none' },
-    paint: { 'line-color': AIR_COLOR, 'line-width': 1.6 } });
+    paint: { 'line-color': AIR_COLOR, 'line-width': ['match', ['get', 'cat'], 'border', 2.4, 1.6] } });
   map.on('click', 'airspace-fill', (e) => {
     const p = e.features[0].properties;
     new maplibregl.Popup({ offset: 6 }).setLngLat(e.lngLat)
