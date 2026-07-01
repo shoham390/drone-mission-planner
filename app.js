@@ -25,14 +25,23 @@ const map = new maplibregl.Map({
   container: 'map', center: [34.78, 32.08], zoom: 7, pitch: 0, maxPitch: 85,
   style: {
     version: 8,
+    // glyphs are required to render any text label; OpenFreeMap serves fonts + planet vectors keyless.
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       sat: { type: 'raster', tileSize: 256, attribution: 'Esri', maxzoom: 19,
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
       dem: { type: 'raster-dem', tileSize: 256, encoding: 'terrarium', maxzoom: 15, tiles: [DEM] },
+      labels: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
     },
     layers: [
       { id: 'sat', type: 'raster', source: 'sat' },
       { id: 'hills', type: 'hillshade', source: 'dem', paint: { 'hillshade-exaggeration': 0.3 } },
+      // Hebrew city/town names; fall back to default name where name:he is missing.
+      { id: 'city-labels', type: 'symbol', source: 'labels', 'source-layer': 'place',
+        filter: ['in', ['get', 'class'], ['literal', ['city', 'town', 'village']]],
+        layout: { 'text-field': ['coalesce', ['get', 'name:he'], ['get', 'name']],
+          'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 7, 11, 12, 16] },
+        paint: { 'text-color': '#fff', 'text-halo-color': '#04222a', 'text-halo-width': 1.6 } },
     ],
     terrain: { source: 'dem', exaggeration: EXAG },
   },
