@@ -210,12 +210,19 @@ function initAuth() {
       $('save').disabled = false;
       $('load').disabled = false;
     },
+    error_callback: () => {}, // silent attempt below found no session/consent — leave the gate up
   });
 }
 $('signin').onclick = () => {
   if (!tokenClient) initAuth();
   tokenClient.requestAccessToken();
 };
+// "Remember me" = Google's own session, not ours: try a silent, UI-less reauth on
+// load (works if the user already granted access and is still signed in to Google).
+// ponytail: no token storage to manage — if third-party cookies are blocked the
+// hidden iframe just fails and the gate stays up, same as first-time sign-in.
+initAuth();
+tokenClient.requestAccessToken({ prompt: '' });
 
 // ---- KML/KMZ -> GeoJSON ----
 async function fileToGeoJSON(file) {
