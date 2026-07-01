@@ -103,7 +103,9 @@ async function addAirspace() {
 
 const $ = (id) => document.getElementById(id);
 
-// one switch per category (CTR / P / R / border); filter both layers to the enabled set
+// one switch per category (CTR / P / R / border), plus an "All" switch that
+// flips every category switch at once; filter both layers to the enabled set
+const AIR_CATS = ['CTR', 'P', 'R', 'border'];
 const airCats = new Set();
 function applyAirFilter() {
   const f = ['in', ['get', 'cat'], ['literal', [...airCats]]];
@@ -112,9 +114,16 @@ function applyAirFilter() {
     map.setLayoutProperty(id, 'visibility', airCats.size ? 'visible' : 'none');
   }
 }
-for (const cat of ['CTR', 'P', 'R', 'border']) {
+for (const cat of AIR_CATS) {
   $('air-' + cat).onchange = (e) => { e.target.checked ? airCats.add(cat) : airCats.delete(cat); applyAirFilter(); };
 }
+$('air-all').onchange = (e) => {
+  for (const cat of AIR_CATS) {
+    $('air-' + cat).checked = e.target.checked;
+    e.target.checked ? airCats.add(cat) : airCats.delete(cat);
+  }
+  applyAirFilter();
+};
 
 // push current zones into the map source + frame them
 function drawZones() {
@@ -152,7 +161,12 @@ let coordPin;
 function showCoord() {
   const { lng, lat } = coordPin.getLngLat();
   const t = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  coordPin.getPopup().setHTML(`<span class="coordtxt">${t}</span><button class="copybtn" data-c="${t}">Copy</button>`);
+  coordPin.getPopup().setHTML(
+    `<span class="coordtxt">${t}</span>` +
+    `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(lat, lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
+    `<a class="navico" title="Open in Waze" href="${wazeNavUrl(lat, lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
+    `<button class="copybtn" data-c="${t}">Copy</button>`
+  );
   if (!coordPin.getPopup().isOpen()) coordPin.togglePopup();
 }
 function dropPin(lngLat) {
