@@ -172,7 +172,10 @@ function showCoord() {
 function dropPin(lngLat) {
   if (!coordPin) {
     coordPin = new maplibregl.Marker({ color: '#22e0e0', draggable: true })
-      .setPopup(new maplibregl.Popup({ closeButton: false, offset: 26 }));
+      // closeOnClick: false — otherwise the mouse "click" that fires right after the
+      // long-press's mouseup reads as "clicked outside the popup" and closes it
+      // instantly; our own map click handler already owns hiding the pin.
+      .setPopup(new maplibregl.Popup({ closeButton: false, offset: 26, closeOnClick: false }));
     coordPin.on('drag', showCoord);
   }
   coordPin.setLngLat(lngLat).addTo(map);
