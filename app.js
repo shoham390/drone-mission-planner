@@ -38,6 +38,9 @@ const map = new maplibregl.Map({
   },
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left'); // zoom + tilt/compass
+map.addControl(new maplibregl.GeolocateControl({                                        // live position dot + follow
+  positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showUserHeading: true,
+}), 'top-left');
 // ponytail: terrain is always on (set in the style below) — no toggle control to turn it off.
 map.on('load', () => {
   map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
