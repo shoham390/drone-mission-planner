@@ -7,16 +7,16 @@
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <style>
     /* NEXUS glass theme: deep-blue steel, frosted panels, chrome/electric-blue accents */
-    :root { --bg: #1a2440; --bg2: #3a4c70; --panel: rgba(64,84,120,.42); --line: rgba(196,214,244,.24);
-            --text: #eef3fb; --muted: #a3b6d4; --accent: #aecbf2; --blue: #5f92e6;
-            --glass: rgba(200,216,240,.08); --glass-hi: rgba(206,222,248,.18);
-            --glow: 0 0 18px rgba(150,190,240,.4); }
+    :root { --bg: #04070a; --bg2: #0a1519; --panel: rgba(9,18,22,.72); --line: rgba(0,229,255,.22);
+            --text: #d6f7fd; --muted: #6f929b; --accent: #00e5ff; --blue: #00c8d8;
+            --glass: rgba(0,229,255,.05); --glass-hi: rgba(0,229,255,.16);
+            --glow: 0 0 16px rgba(0,229,255,.5); }
     * { box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     /* position:fixed is the only reliable page-scroll lock on iOS Safari (overflow:hidden isn't). */
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: row-reverse;
            position: fixed; inset: 0; height: 100dvh; width: 100%; color: var(--text);
-           background: radial-gradient(110% 85% at 68% 16%, #7185a6 0%, #4a5d81 33%, #2c3a58 66%, var(--bg) 100%); }
+           background: radial-gradient(120% 80% at 50% -10%, #0a1c22 0%, #060f14 45%, var(--bg) 100%); }
     #side { width: 340px; flex: none; padding: 18px; overflow-y: auto; background: var(--panel);
             backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
             border-left: 1px solid var(--line); box-shadow: -1px 0 0 rgba(255,255,255,.06) inset;
@@ -33,9 +33,9 @@
              backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
     button:hover:not(:disabled) { background: rgba(255,255,255,.12); border-color: rgba(150,190,255,.4); }
     button:disabled { opacity: .4; cursor: not-allowed; }
-    button.primary { background: linear-gradient(180deg, #5ea0ff, #3d7de0); border-color: rgba(180,215,255,.6);
-                     color: #06182f; font-weight: 700; box-shadow: var(--glow); }
-    button.primary:hover { background: linear-gradient(180deg, #7ab2ff, #4b8fef); }
+    button.primary { background: linear-gradient(180deg, #22f0ff, #00c8d8); border-color: #6ffcff;
+                     color: #022027; font-weight: 700; box-shadow: var(--glow); border-radius: 999px; }
+    button.primary:hover { background: linear-gradient(180deg, #5cf7ff, #00e5ff); }
     .drone { width: 22px; height: 22px; flex: none; filter: drop-shadow(var(--glow)); }
     .gate-card .drone { width: 64px; height: 64px; }
     #signin { background: #fff; color: #1f2937; border-color: #fff; font-weight: 600; }
@@ -84,13 +84,18 @@
     .coordtxt { color: var(--accent); font-weight: 600; white-space: nowrap; }
     .copybtn { padding: 3px 9px; font-size: 12px; border: 1px solid var(--blue); background: var(--blue);
       color: #071528; border-radius: 6px; cursor: pointer; font-weight: 700; }
-    .copybtn:hover { background: #7ab2ff; }
+    .copybtn:hover { background: #5cf7ff; }
     .maplibregl-ctrl-group { background: var(--panel); }
     .maplibregl-ctrl-group button { filter: invert(1) hue-rotate(180deg); }
     #gate { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center;
-            justify-content: center; background: radial-gradient(circle at 55% 30%, #6d81a3, #35446599 55%, var(--bg)); }
-    .gate-card { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-                 border: 1px solid var(--glass-hi); border-radius: 20px; background: var(--glass); }
+            justify-content: center; background: var(--bg); }
+    /* ref look: dark card, clean even cyan glow, neon icon, cyan pill CTA */
+    .gate-card { position: relative; border: 1px solid rgba(0,229,255,.2); border-radius: 16px; background: #0a0e11;
+                 box-shadow: 0 0 34px rgba(0,229,255,.14), 0 24px 60px rgba(0,0,0,.6); }
+    .gate-card h1 { color: var(--accent); text-shadow: 0 0 16px rgba(0,229,255,.5); }
+    .gate-card #signin { background: linear-gradient(180deg, #22f0ff, #00c8d8); color: #022027;
+      border: 1px solid #6ffcff; border-radius: 999px; box-shadow: var(--glow); font-weight: 700; }
+    .gate-card #signin:hover { background: linear-gradient(180deg, #5cf7ff, #00e5ff); }
     .gate-card { text-align: center; max-width: 360px; padding: 40px 24px; }
     .gate-card .logo { font-size: 56px; line-height: 1; }
     .gate-card h1 { font-size: 26px; margin: 16px 0 10px; font-weight: 650; }
@@ -130,9 +135,7 @@
     <div class="gate-card">
       <svg class="drone" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M6.6 6.6 9.5 9.5M17.4 6.6 14.5 9.5M6.6 17.4 9.5 14.5M17.4 17.4 14.5 14.5"/><rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.2"/></svg>
       <h1>Drone Mission Planner</h1>
-      <p>Plan daily drone scanning missions — upload KML/KMZ, map your zones, navigate.</p>
       <button id="signin">Sign in with Google</button>
-      <p class="note">Sign in with your Google account to save missions and files to your Drive.</p>
     </div>
   </div>
   <div id="side">
