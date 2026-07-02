@@ -132,18 +132,19 @@ function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
 }
-// frame a single zone's polygon (used when its list row is tapped), then a
-// cinematic move: once framed flat, ease to a 45° tilt and swing the bearing
-// a little for a dynamic 3D reveal. Double-click the compass to reset.
-// ponytail: chained on a timer, not moveend — when the zone is already framed
-// (e.g. right after a single-zone upload) fitBounds is a no-op and fires no
-// moveend, so a moveend chain would silently skip the tilt.
-const FIT_MS = 233;
+// frame a single zone's polygon (used when its list row is tapped) with a
+// cinematic move: fly in AND tilt to 45° + swing the bearing 40° in ONE arc,
+// so it reads as a dynamic 3D reveal. Double-click the compass to reset.
+// ponytail: one flyTo, not a fitBounds+timer chain — the timer let the tilt
+// interrupt a half-finished zoom on slower phones, tilting the wrong spot.
+// essential: true = still animates when the OS has "reduce motion" enabled.
 function flyToZone(z) {
   const b = new maplibregl.LngLatBounds();
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
-  map.fitBounds(b, { padding: 80, maxZoom: 17, pitch: 0, bearing: 0, duration: FIT_MS });
-  setTimeout(() => map.easeTo({ pitch: 45, bearing: 40, duration: 600 }), FIT_MS);
+  const cam = map.cameraForBounds(b, { padding: 80, maxZoom: 16 });
+  if (!cam) return; // degenerate ring — nothing to frame
+  map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 45, bearing: 40,
+    duration: 900, essential: true });
 }
 function fitZones(opts) {
   if (!zones.length) return;
