@@ -226,6 +226,7 @@ function initAuth() {
       map.resize(); // container sized after the gate hid
       $('save').disabled = false;
       $('load').disabled = false;
+      showFolderLink(); // reveal the "open Drive folder" link (creates the folder if needed)
     },
     error_callback: () => {}, // silent attempt below found no session/consent — leave the gate up
   });
@@ -382,11 +383,38 @@ const blobToB64 = (blob) =>
     r.readAsDataURL(blob);
   });
 
+// All app files live in one Drive folder so it's tidy + gives you one shareable link.
+// drive.file scope means this search only ever sees folders THIS app created, so it
+// reuses the folder from a past session and can't collide with a same-named folder of
+// yours. Cached per session; created on first need.
+const FOLDER_NAME = 'Drone Mission Planner';
+let folderId;
+async function getFolderId() {
+  if (folderId) return folderId;
+  const q = `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } });
+  const { files = [] } = await r.json();
+  if (files[0]) return (folderId = files[0].id);
+  const c = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  return (folderId = (await c.json()).id);
+}
+async function showFolderLink() {
+  const a = $('drivefolder');
+  a.href = `https://drive.google.com/drive/folders/${await getFolderId()}`;
+  a.style.display = 'inline';
+}
+
 async function driveUpload(name, mimeType, base64) {
   const boundary = 'b' + Date.now();
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify({ name, mimeType }) +
+    JSON.stringify({ name, mimeType, parents: [await getFolderId()] }) +
     `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
     base64 + `\r\n--${boundary}--`;
   const r = await fetch(
@@ -410,8 +438,13 @@ $('save').onclick = async () => {
   alert(`Saved ${name} to Drive.`);
 };
 
-// list all app-created mission files into the dropdown, newest first — just
-// shows them; picking one is what loads it (see sel.onchange below).
+// list all app-created mission files into the dropdown, newest first, and load
+// whichever ends up selected (the newest one, initially) — picking a different
+// one from the dropdown loads that instead (see sel.onchange below).
+// ponytail: a fresh <select>'s first option is pre-selected but never fires
+// 'change', so re-picking that same (already-selected) option silently does
+// nothing — loading the initial selection here is what makes "Load mission"
+// actually load something instead of requiring a switch to a different item.
 async function refreshMissions() {
   const r = await fetch(
     // q=trashed=false: Drive v3 lists trashed files by default, so a just-deleted
@@ -430,6 +463,7 @@ async function refreshMissions() {
   sel.innerHTML = missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
   sel.style.display = $('delmission').style.display = 'inline';
   sel.onchange = () => loadMission(sel.value);
+  loadMission(sel.value); // load whatever's selected — the newest one, right now
 }
 $('load').onclick = () => refreshMissions();
 
@@ -444,7 +478,7 @@ $('delmission').onclick = async () => {
     body: JSON.stringify({ trashed: true }),
   });
   if (!r.ok) return alert(`Delete failed (${r.status})`);
-  refreshMissions(); // refresh the list; don't auto-load anything
+  refreshMissions(); // refresh the list and load whatever's now newest
 };
 
 async function loadMission(id) {
