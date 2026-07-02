@@ -132,11 +132,18 @@ function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
 }
-// frame a single zone's polygon (used when its list row is tapped)
+// frame a single zone's polygon (used when its list row is tapped), then a
+// cinematic move: once framed flat, ease to a 45° tilt and swing the bearing
+// a little for a dynamic 3D reveal. Double-click the compass to reset.
+// ponytail: chained on a timer, not moveend — when the zone is already framed
+// (e.g. right after a single-zone upload) fitBounds is a no-op and fires no
+// moveend, so a moveend chain would silently skip the tilt.
+const FIT_MS = 700;
 function flyToZone(z) {
   const b = new maplibregl.LngLatBounds();
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
-  map.fitBounds(b, { padding: 80, maxZoom: 17, duration: 600 });
+  map.fitBounds(b, { padding: 80, maxZoom: 17, pitch: 0, bearing: 0, duration: FIT_MS });
+  setTimeout(() => map.easeTo({ pitch: 45, bearing: 40, duration: 1800 }), FIT_MS);
 }
 function fitZones(opts) {
   if (!zones.length) return;
