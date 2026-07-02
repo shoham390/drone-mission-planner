@@ -215,7 +215,12 @@ document.addEventListener('click', (e) => { // Copy button in the coordinate pop
 });
 
 // ---- auth ----
-let tokenClient;
+// Google's access tokens die after ~1h; before this, every Drive call in an
+// open tab then failed (loads silently, uploads/deletes with a 401 alert).
+// One shared callback serves both first sign-in and driveFetch's silent
+// mid-session refreshes — it's idempotent, so re-running the sign-in UI
+// bits on a refresh is harmless.
+let tokenClient, tokenWaiter;
 function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -227,9 +232,23 @@ function initAuth() {
       $('save').disabled = false;
       refreshMissions(); // show the saved-missions list right away
       showFolderLink(); // reveal the "open Drive folder" link (creates the folder if needed)
+      tokenWaiter?.(); tokenWaiter = null;
     },
-    error_callback: () => {}, // silent attempt below found no session/consent — leave the gate up
+    // no session/consent to refresh silently — put the sign-in gate back up so
+    // the fix is obvious instead of Drive calls failing quietly forever.
+    error_callback: () => { tokenWaiter?.(); tokenWaiter = null; $('gate').style.display = 'flex'; },
   });
+}
+// every Drive call goes through here: on 401 (expired token) refresh silently
+// and retry once. 403 (quota/permission) is real — let it surface.
+async function driveFetch(url, opts = {}) {
+  const call = () => fetch(url, { ...opts, headers: { Authorization: `Bearer ${accessToken}`, ...opts.headers } });
+  let r = await call();
+  if (r.status === 401) {
+    await new Promise((res) => { tokenWaiter = res; tokenClient.requestAccessToken({ prompt: '' }); });
+    r = await call();
+  }
+  return r;
 }
 $('signin').onclick = () => {
   if (!tokenClient) initAuth();
@@ -393,14 +412,13 @@ let folderId;
 async function getFolderId() {
   if (folderId) return folderId;
   const q = `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  const r = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`,
-    { headers: { Authorization: `Bearer ${accessToken}` } });
+  const r = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   const { files = [] } = await r.json();
   if (files[0]) return (folderId = files[0].id);
-  const c = await fetch('https://www.googleapis.com/drive/v3/files', {
+  const c = await driveFetch('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
   });
   return (folderId = (await c.json()).id);
@@ -416,9 +434,8 @@ async function showFolderLink() {
 // (drive.file scope: this search only ever sees files this app created.)
 async function findByName(name) {
   const q = `name='${name.replace(/'/g, "\\'")}' and trashed=false`;
-  const r = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`,
-    { headers: { Authorization: `Bearer ${accessToken}` } });
+  const r = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   return (await r.json()).files?.[0]?.id;
 }
 async function driveUpload(name, mimeType, base64) {
@@ -430,12 +447,10 @@ async function driveUpload(name, mimeType, base64) {
     JSON.stringify(id ? { name, mimeType } : { name, mimeType, parents: [await getFolderId()] }) +
     `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
     base64 + `\r\n--${boundary}--`;
-  const r = await fetch(
+  const r = await driveFetch(
     `https://www.googleapis.com/upload/drive/v3/files${id ? '/' + id : ''}?uploadType=multipart`,
-    { method: id ? 'PATCH' : 'POST', headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      }, body });
+    { method: id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
   if (!r.ok) throw new Error(`Drive upload failed (${r.status})`);
   return r.json();
 }
@@ -447,7 +462,8 @@ $('save').onclick = async () => {
   if (!zones.length) return alert('Nothing to save.');
   const name = ($('mname').value.trim() || 'mission') + '.mission.json';
   const doc = { name, zones: zones.map((z, i) => ({ order: i + 1, name: z.name, feature: z.feature })) };
-  await driveUpload(name, 'application/json', b64(JSON.stringify(doc)));
+  try { await driveUpload(name, 'application/json', b64(JSON.stringify(doc))); }
+  catch (err) { return alert(`Save failed: ${err.message}`); } // never fail silently
   alert(`Saved ${name} to Drive.`);
   refreshMissions(); // the new mission shows up in the list
 };
@@ -458,11 +474,11 @@ $('save').onclick = async () => {
 // ponytail: the .mission.json suffix is the on-disk marker that identifies our
 // files among all drive.file files — keep it on disk, just hide it in the list.
 async function refreshMissions() {
-  const r = await fetch(
+  const r = await driveFetch(
     // q=trashed=false: Drive v3 lists trashed files by default, so a just-deleted
     // mission would reappear here without this filter.
-    'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=modifiedTime desc&q=trashed%3Dfalse&fields=files(id,name)',
-    { headers: { Authorization: `Bearer ${accessToken}` } });
+    'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=modifiedTime desc&q=trashed%3Dfalse&fields=files(id,name)');
+  if (!r.ok) return alert(`Couldn't list missions (${r.status})`);
   const { files = [] } = await r.json();
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
   const sel = $('missions');
@@ -478,11 +494,13 @@ $('missions').onchange = () => {
 // delete the selected mission — trash, not permanent: recoverable from Drive trash.
 $('delmission').onclick = async () => {
   const sel = $('missions');
+  // the "Load mission…" placeholder is selected — there's nothing to delete yet
+  if (!sel.value) return alert('Pick the mission to delete from the list first.');
   const name = sel.options[sel.selectedIndex]?.text;
-  if (!sel.value || !confirm(`Delete "${name}"? It moves to your Google Drive trash.`)) return;
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${sel.value}`, {
+  if (!confirm(`Delete "${name}"? It moves to your Google Drive trash.`)) return;
+  const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sel.value}`, {
     method: 'PATCH',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ trashed: true }),
   });
   if (!r.ok) return alert(`Delete failed (${r.status})`);
@@ -490,8 +508,8 @@ $('delmission').onclick = async () => {
 };
 
 async function loadMission(id, name) {
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
-    { headers: { Authorization: `Bearer ${accessToken}` } });
+  const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+  if (!r.ok) return alert(`Load failed (${r.status})`); // was a silent nothing-happens
   const doc = await r.json();
   if (name) $('mname').value = name; // so Save overwrites the loaded mission by default
   numberMarkers.forEach((m) => m.remove());
