@@ -376,7 +376,7 @@ $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY
 
 const MAPS_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
 const WAZE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
-const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34a853" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4.2" ry="9"/><path d="M3 12h18"/></svg>';
+const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34a853" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>';
 
 function render() {
   $('list').innerHTML = '';
@@ -389,7 +389,7 @@ function render() {
       `<b><span class="num">${i + 1}</span> ${z.name}</b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
-      `<a class="navico" title="Open polygon in Google Earth (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
+      `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
     div.querySelector('b').addEventListener('click', () => flyToZone(z)); // tap the name to zoom to it
     $('list').appendChild(div);
   });
