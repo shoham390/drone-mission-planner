@@ -316,7 +316,7 @@ function addZonesFromGeoJSON(gj, fileLabel) {
   }
   drawZones();
   fitZones();
-  render();
+  planRoute(); // route is (re)planned automatically on every upload/load
 }
 
 // ---- upload handler: draw + push raw file to Drive ----
@@ -352,7 +352,6 @@ function planRoute() {
   link.style.display = 'inline';
   render();
 }
-$('plan').onclick = planRoute;
 
 // wipe all loaded zones (in-memory only; saved missions & Drive files are untouched)
 $('clear').onclick = () => {
@@ -514,6 +513,5 @@ async function loadMission(id, name) {
   if (name) $('mname').value = name; // so Save overwrites the loaded mission by default
   numberMarkers.forEach((m) => m.remove());
   zones = []; numberMarkers = [];
-  addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) });
-  $('plan').click();
+  addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) }); // plans the route itself
 }
