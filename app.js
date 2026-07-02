@@ -77,6 +77,12 @@ map.on('load', () => {
     paint: { 'fill-color': '#22e0e0', 'fill-opacity': 0.18 } });
   map.addLayer({ id: 'zones-line', type: 'line', source: 'zones',
     paint: { 'line-color': '#22e0e0', 'line-width': 2 } });
+  // draggable vertex handles (hidden until "Edit vertices" is on)
+  map.addSource('verts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'verts', type: 'circle', source: 'verts', // empty source when not editing = no handles drawn
+    paint: { 'circle-radius': ['case', ['get', 'sel'], 8, 6],
+      'circle-color': ['case', ['get', 'sel'], '#ff3d7f', '#00e5ff'],
+      'circle-stroke-width': 2, 'circle-stroke-color': '#04070a' } });
   drawZones(); // zones may have loaded before the style was ready
   addAirspace(); // toggleable Israel airspace reference layer
 });
@@ -127,11 +133,111 @@ $('air-all').onchange = (e) => {
   applyAirFilter();
 };
 
-// push current zones into the map source + frame them
+// push current zones into the map source (+ the editable vertex handles)
 function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
+  drawVerts();
 }
+function drawVerts() {
+  map.getSource('verts')?.setData(editMode ? vertFeatures() : { type: 'FeatureCollection', features: [] });
+}
+
+// ---- polygon editing: pick ONE polygon, then drag/add/remove/reset its corners ----
+// KML rings are closed (last coord == first), so we render one handle per unique
+// corner and, when the first moves/goes, keep the closing copy in step.
+// Click a polygon to select it (its handles appear); tap a handle to select it
+// (turns pink); Add inserts after it, Remove deletes it.
+let editMode = false, dragVert = null, selVert = null, selZone = null; // selZone = index of the polygon being edited
+const ringClosed = (r) => r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1];
+const uniqCount = (r) => (ringClosed(r) ? r.length - 1 : r.length);
+const isSel = (zi, vi) => !!selVert && selVert.zi === zi && selVert.vi === vi;
+// snapshot the as-loaded ring the first time a zone is touched, so Reset can restore it
+const ensureOrig = (z) => { if (!z.origRing) z.origRing = z.feature.geometry.coordinates[0].map((c) => c.slice()); };
+function vertFeatures() {
+  const fs = [];
+  const zi = selZone; // handles only for the selected polygon
+  if (zi == null || !zones[zi]) return { type: 'FeatureCollection', features: fs };
+  const ring = zones[zi].feature.geometry.coordinates[0];
+  for (let vi = 0; vi < uniqCount(ring); vi++)
+    fs.push({ type: 'Feature', properties: { zi, vi, sel: isSel(zi, vi) }, geometry: { type: 'Point', coordinates: ring[vi] } });
+  return { type: 'FeatureCollection', features: fs };
+}
+function setEdit(on) {
+  editMode = on;
+  if (!on) { selVert = null; selZone = null; }
+  $('editctrls').style.display = on ? '' : 'none';
+  updateEditUI();
+  drawVerts();
+}
+// show "select a polygon" until one is picked, then reveal the vertex tools
+function updateEditUI() {
+  const has = editMode && selZone != null && zones[selZone];
+  $('editnote').style.display = editMode && !has ? '' : 'none';
+  $('edittools').style.display = has ? '' : 'none';
+}
+function selectZone(zi) {
+  selZone = zi; selVert = null;
+  updateEditUI();
+  drawVerts();
+}
+// insert a new vertex at the midpoint of the edge after the selected corner
+function addVert() {
+  if (!selVert) return;
+  const z = zones[selVert.zi]; ensureOrig(z);
+  const ring = z.feature.geometry.coordinates[0];
+  const n = uniqCount(ring);
+  const a = ring[selVert.vi], b = ring[(selVert.vi + 1) % n];
+  ring.splice(selVert.vi + 1, 0, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+  selVert = { zi: selVert.zi, vi: selVert.vi + 1 };
+  drawZones();
+}
+// delete the selected corner (never below a triangle); re-close if the first went
+function removeVert() {
+  if (!selVert) return;
+  const z = zones[selVert.zi]; ensureOrig(z);
+  const ring = z.feature.geometry.coordinates[0];
+  if (uniqCount(ring) <= 3) return;
+  const vi = selVert.vi;
+  if (ringClosed(ring) && vi === 0) { ring.splice(0, 1); ring[ring.length - 1] = ring[0].slice(); }
+  else ring.splice(vi, 1);
+  selVert = { zi: selVert.zi, vi: Math.max(0, vi - 1) };
+  drawZones();
+}
+// restore the selected polygon to the shape it had when loaded
+function resetPolys() {
+  const z = zones[selZone];
+  if (z && z.origRing) z.feature.geometry.coordinates[0] = z.origRing.map((c) => c.slice());
+  selVert = null;
+  drawZones();
+}
+// click a polygon (while editing) to make it the one being edited
+map.on('click', 'zones-fill', (e) => {
+  if (!editMode) return;
+  const zi = zones.findIndex((z) => z.id === e.features[0].properties.id);
+  if (zi >= 0) selectZone(zi);
+});
+map.on('mousedown', 'verts', (e) => {
+  e.preventDefault();          // stop the map from panning
+  dragVert = e.features[0].properties;
+  selVert = { zi: dragVert.zi, vi: dragVert.vi }; // touching a handle selects it
+  cancelPress();               // don't let the long-press pin fire on a grab
+  drawVerts();
+  map.getCanvas().style.cursor = 'grabbing';
+});
+map.on('mousemove', (e) => {
+  if (!dragVert) return;
+  const z = zones[dragVert.zi]; ensureOrig(z);
+  const ring = z.feature.geometry.coordinates[0];
+  const p = [e.lngLat.lng, e.lngLat.lat];
+  const wasClosed = ringClosed(ring); // check before mutating — moving v0 would otherwise "open" it
+  ring[dragVert.vi] = p;
+  if (dragVert.vi === 0 && wasClosed) ring[ring.length - 1] = p;
+  drawZones();
+});
+map.on('mouseup', () => { if (dragVert) { dragVert = null; map.getCanvas().style.cursor = ''; } });
+map.on('mouseenter', 'verts', () => { if (!dragVert) map.getCanvas().style.cursor = 'grab'; });
+map.on('mouseleave', 'verts', () => { if (!dragVert) map.getCanvas().style.cursor = ''; });
 // frame a single zone's polygon (used when its list row is tapped) with a
 // cinematic move: fly in AND tilt to 45° + swing the bearing 40° in ONE arc,
 // so it reads as a dynamic 3D reveal. Double-click the compass to reset.
@@ -198,6 +304,7 @@ function dropPin(lngLat) {
 let pressTimer, pressPt, justDropped = false;
 const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
 const startPress = (e) => {
+  if (dragVert) return;                                                                    // grabbing a polygon vertex
   if (e.originalEvent.touches && e.originalEvent.touches.length > 1) return cancelPress(); // multi-touch = navigation
   if (e.originalEvent.target.closest('.maplibregl-marker')) return;                        // grabbing the pin
   justDropped = false;
@@ -318,10 +425,11 @@ function addZonesFromGeoJSON(gj, fileLabel) {
     const center = { lat: clat, lng: clng };
     const corner = { lat: it.ring[0][1], lng: it.ring[0][0] }; // ponytail: first vertex = the corner
     const active = pointMode === 'corner' ? corner : center;
+    const id = crypto.randomUUID();
     zones.push({
-      id: crypto.randomUUID(), name,
+      id, name,
       lat: active.lat, lng: active.lng, center, corner,
-      feature: { type: 'Feature', properties: { name }, geometry: { type: 'Polygon', coordinates: [it.ring] } },
+      feature: { type: 'Feature', properties: { name, id }, geometry: { type: 'Polygon', coordinates: [it.ring] } },
     });
   }
   drawZones();
@@ -363,6 +471,11 @@ function planRoute() {
   render();
 }
 
+$('editverts').onchange = (e) => setEdit(e.target.checked);
+$('vadd').onclick = addVert;
+$('vdel').onclick = removeVert;
+$('vreset').onclick = resetPolys;
+
 // wipe all loaded zones (in-memory only; saved missions & Drive files are untouched)
 $('clear').onclick = () => {
   if (!zones.length || !confirm('Clear all zones from the map?')) return;
@@ -398,7 +511,10 @@ function render() {
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
       `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
-    div.querySelector('b').addEventListener('click', () => flyToZone(z)); // tap the name to zoom to it
+    div.querySelector('b').addEventListener('click', () => { // tap the name to zoom to it
+      flyToZone(z);
+      if (editMode) selectZone(zones.indexOf(z)); // ...and pick it for editing
+    });
     $('list').appendChild(div);
   });
 }
