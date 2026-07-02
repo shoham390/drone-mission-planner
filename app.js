@@ -225,7 +225,7 @@ function initAuth() {
       $('gate').style.display = 'none'; // enter the app
       map.resize(); // container sized after the gate hid
       $('save').disabled = false;
-      $('load').disabled = false;
+      refreshMissions(); // show the saved-missions list right away
       showFolderLink(); // reveal the "open Drive folder" link (creates the folder if needed)
     },
     error_callback: () => {}, // silent attempt below found no session/consent — leave the gate up
@@ -342,6 +342,7 @@ $('clear').onclick = () => {
   zones = []; numberMarkers = [];
   drawZones();
   $('routelink').style.display = 'none';
+  $('missions').selectedIndex = 0; // so re-picking the just-cleared mission fires change
   render();
 };
 
@@ -410,16 +411,28 @@ async function showFolderLink() {
   a.style.display = 'inline';
 }
 
+// Same-name file already saved by this app? Update it in place instead of creating
+// a duplicate — one file per name keeps the Drive folder's storage monitorable.
+// (drive.file scope: this search only ever sees files this app created.)
+async function findByName(name) {
+  const q = `name='${name.replace(/'/g, "\\'")}' and trashed=false`;
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } });
+  return (await r.json()).files?.[0]?.id;
+}
 async function driveUpload(name, mimeType, base64) {
+  const id = await findByName(name);
   const boundary = 'b' + Date.now();
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify({ name, mimeType, parents: [await getFolderId()] }) +
+    // parents may only be set at creation; updates keep the file where it is
+    JSON.stringify(id ? { name, mimeType } : { name, mimeType, parents: [await getFolderId()] }) +
     `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n` +
     base64 + `\r\n--${boundary}--`;
   const r = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-    { method: 'POST', headers: {
+    `https://www.googleapis.com/upload/drive/v3/files${id ? '/' + id : ''}?uploadType=multipart`,
+    { method: id ? 'PATCH' : 'POST', headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`,
       }, body });
@@ -436,36 +449,31 @@ $('save').onclick = async () => {
   const doc = { name, zones: zones.map((z, i) => ({ order: i + 1, name: z.name, feature: z.feature })) };
   await driveUpload(name, 'application/json', b64(JSON.stringify(doc)));
   alert(`Saved ${name} to Drive.`);
+  refreshMissions(); // the new mission shows up in the list
 };
 
-// list all app-created mission files into the dropdown, newest first, and load
-// whichever ends up selected (the newest one, initially) — picking a different
-// one from the dropdown loads that instead (see sel.onchange below).
-// ponytail: a fresh <select>'s first option is pre-selected but never fires
-// 'change', so re-picking that same (already-selected) option silently does
-// nothing — loading the initial selection here is what makes "Load mission"
-// actually load something instead of requiring a switch to a different item.
+// saved-missions dropdown: filled at sign-in and after save/delete, last-modified
+// first. First option is a "Load mission…" placeholder, so nothing loads until
+// picked; the selected option then shows which mission is on the map.
+// ponytail: the .mission.json suffix is the on-disk marker that identifies our
+// files among all drive.file files — keep it on disk, just hide it in the list.
 async function refreshMissions() {
   const r = await fetch(
     // q=trashed=false: Drive v3 lists trashed files by default, so a just-deleted
     // mission would reappear here without this filter.
-    'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=createdTime desc&q=trashed%3Dfalse&fields=files(id,name)',
+    'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=modifiedTime desc&q=trashed%3Dfalse&fields=files(id,name)',
     { headers: { Authorization: `Bearer ${accessToken}` } });
   const { files = [] } = await r.json();
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
   const sel = $('missions');
-  if (!missions.length) {
-    sel.style.display = $('delmission').style.display = 'none';
-    return alert('No saved missions found.');
-  }
-  // ponytail: the .mission.json suffix is the on-disk marker that identifies our
-  // files among all drive.file files — keep it on disk, just hide it in the list.
-  sel.innerHTML = missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
-  sel.style.display = $('delmission').style.display = 'inline';
-  sel.onchange = () => loadMission(sel.value);
-  loadMission(sel.value); // load whatever's selected — the newest one, right now
+  sel.style.display = $('delmission').style.display = missions.length ? 'inline' : 'none';
+  sel.innerHTML = '<option value="" disabled selected>Load mission…</option>' +
+    missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
 }
-$('load').onclick = () => refreshMissions();
+$('missions').onchange = () => {
+  const sel = $('missions');
+  if (sel.value) loadMission(sel.value, sel.selectedOptions[0].textContent);
+};
 
 // delete the selected mission — trash, not permanent: recoverable from Drive trash.
 $('delmission').onclick = async () => {
@@ -478,13 +486,14 @@ $('delmission').onclick = async () => {
     body: JSON.stringify({ trashed: true }),
   });
   if (!r.ok) return alert(`Delete failed (${r.status})`);
-  refreshMissions(); // refresh the list and load whatever's now newest
+  refreshMissions(); // back to the placeholder — nothing auto-loads
 };
 
-async function loadMission(id) {
+async function loadMission(id, name) {
   const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
     { headers: { Authorization: `Bearer ${accessToken}` } });
   const doc = await r.json();
+  if (name) $('mname').value = name; // so Save overwrites the loaded mission by default
   numberMarkers.forEach((m) => m.remove());
   zones = []; numberMarkers = [];
   addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) });
