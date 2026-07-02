@@ -138,12 +138,12 @@ function drawZones() {
 // ponytail: chained on a timer, not moveend — when the zone is already framed
 // (e.g. right after a single-zone upload) fitBounds is a no-op and fires no
 // moveend, so a moveend chain would silently skip the tilt.
-const FIT_MS = 467;
+const FIT_MS = 233;
 function flyToZone(z) {
   const b = new maplibregl.LngLatBounds();
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
   map.fitBounds(b, { padding: 80, maxZoom: 17, pitch: 0, bearing: 0, duration: FIT_MS });
-  setTimeout(() => map.easeTo({ pitch: 45, bearing: 40, duration: 1200 }), FIT_MS);
+  setTimeout(() => map.easeTo({ pitch: 45, bearing: 40, duration: 600 }), FIT_MS);
 }
 function fitZones(opts) {
   if (!zones.length) return;
