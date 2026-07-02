@@ -25,6 +25,8 @@ const DEM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}
 const EXAG = 1.4;
 const map = new maplibregl.Map({
   container: 'map', center: [34.78, 32.08], zoom: 7, pitch: 0, maxPitch: 85,
+  attributionControl: false, // remove the ⓘ info button in the map corner
+
   style: {
     version: 8,
     // glyphs are required to render any text label; OpenFreeMap serves fonts + planet vectors keyless.
