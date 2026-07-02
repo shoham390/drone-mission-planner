@@ -6,16 +6,21 @@
   <title>Drone Mission Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <style>
-    :root { --bg: #050a12; --panel: #0a1320; --line: #123640; --text: #dcf4f7;
-            --muted: #7b97a6; --accent: #22e0e0; --blue: #06cdd8;
-            --glow: 0 0 14px rgba(34,224,224,.45); }
+    /* NEXUS glass theme: deep-blue steel, frosted panels, chrome/electric-blue accents */
+    :root { --bg: #1a2440; --bg2: #3a4c70; --panel: rgba(64,84,120,.42); --line: rgba(196,214,244,.24);
+            --text: #eef3fb; --muted: #a3b6d4; --accent: #aecbf2; --blue: #5f92e6;
+            --glass: rgba(200,216,240,.08); --glass-hi: rgba(206,222,248,.18);
+            --glow: 0 0 18px rgba(150,190,240,.4); }
     * { box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     /* position:fixed is the only reliable page-scroll lock on iOS Safari (overflow:hidden isn't). */
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: row-reverse;
-           position: fixed; inset: 0; height: 100dvh; width: 100%; background: var(--bg); color: var(--text); }
+           position: fixed; inset: 0; height: 100dvh; width: 100%; color: var(--text);
+           background: radial-gradient(110% 85% at 68% 16%, #7185a6 0%, #4a5d81 33%, #2c3a58 66%, var(--bg) 100%); }
     #side { width: 340px; flex: none; padding: 18px; overflow-y: auto; background: var(--panel);
-            border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+            backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+            border-left: 1px solid var(--line); box-shadow: -1px 0 0 rgba(255,255,255,.06) inset;
+            display: flex; flex-direction: column; gap: 14px; }
     #map { flex: 1; }
     h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px;
          color: var(--accent); text-shadow: var(--glow); }
@@ -23,31 +28,33 @@
     h1 small { display: block; font-size: 11px; font-weight: 400; color: var(--muted);
                letter-spacing: 0; margin-top: 2px; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
-             background: #1e293b; color: var(--text); font: inherit; transition: .12s; }
-    button:hover:not(:disabled) { background: #273449; border-color: #334155; }
+    button { padding: 8px 12px; border: 1px solid var(--glass-hi); border-radius: 10px; cursor: pointer;
+             background: var(--glass); color: var(--text); font: inherit; transition: .15s;
+             backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    button:hover:not(:disabled) { background: rgba(255,255,255,.12); border-color: rgba(150,190,255,.4); }
     button:disabled { opacity: .4; cursor: not-allowed; }
-    button.primary { background: var(--blue); border-color: var(--blue); color: #04222a; font-weight: 700;
-                     box-shadow: var(--glow); }
-    button.primary:hover { background: #22e0e0; }
+    button.primary { background: linear-gradient(180deg, #5ea0ff, #3d7de0); border-color: rgba(180,215,255,.6);
+                     color: #06182f; font-weight: 700; box-shadow: var(--glow); }
+    button.primary:hover { background: linear-gradient(180deg, #7ab2ff, #4b8fef); }
     .drone { width: 22px; height: 22px; flex: none; filter: drop-shadow(var(--glow)); }
     .gate-card .drone { width: 64px; height: 64px; }
     #signin { background: #fff; color: #1f2937; border-color: #fff; font-weight: 600; }
-    input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
-                    background: #0b1220; color: var(--text); font: inherit; }
+    input, select { padding: 8px 10px; border: 1px solid var(--glass-hi); border-radius: 10px;
+                    background: rgba(30,42,70,.5); color: var(--text); font: inherit; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
     input[type=text], #mname { flex: 1; min-width: 0; }
-    .upload-btn { width: 100%; text-align: center; padding: 14px; border: 1px dashed var(--line);
-                  border-radius: 8px; cursor: pointer; color: var(--muted); }
-    .upload-btn:hover { background: #1e293b; color: var(--text); }
+    .upload-btn { width: 100%; text-align: center; padding: 14px; border: 1px dashed rgba(150,190,255,.35);
+                  border-radius: 12px; cursor: pointer; color: var(--muted); background: rgba(255,255,255,.03); }
+    .upload-btn:hover { background: var(--glass); color: var(--text); border-color: var(--accent); }
     .navico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
-              border: 1px solid var(--line); border-radius: 8px; margin-right: 6px; background: #0f172a; }
-    .navico:hover { background: #1e293b; }
+              border: 1px solid var(--line); border-radius: 8px; margin-right: 6px; background: var(--glass); }
+    .navico:hover { background: rgba(255,255,255,.12); }
     .field { display: flex; flex-direction: column; gap: 6px; }
     .field-label { font-size: 12px; font-weight: 600; color: var(--muted); }
     .switchrow { gap: 10px; }
     .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: none; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .switch .slider { position: absolute; inset: 0; background: #334155; border-radius: 999px; transition: .15s; }
+    .switch .slider { position: absolute; inset: 0; background: rgba(120,140,175,.45); border-radius: 999px; transition: .15s; }
     .switch .slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
       background: #fff; border-radius: 50%; transition: .15s; }
     .switch input:checked + .slider { background: var(--blue); }
@@ -56,7 +63,9 @@
     #routelink { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 13px; }
     #routelink:hover { text-decoration: underline; }
     #list { display: flex; flex-direction: column; gap: 8px; }
-    .zone { padding: 10px 12px; background: #0b1220; border: 1px solid var(--line); border-radius: 10px; }
+    .zone { padding: 10px 12px; background: var(--glass); border: 1px solid var(--glass-hi); border-radius: 12px;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 1px 0 rgba(255,255,255,.08) inset; }
     .zone b { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 600; cursor: pointer; }
     .zone a { font-size: 12px; color: var(--blue); text-decoration: none; margin-right: 10px; }
     .zone a:hover { text-decoration: underline; }
@@ -74,12 +83,14 @@
     .maplibregl-popup-tip { display: none; }
     .coordtxt { color: var(--accent); font-weight: 600; white-space: nowrap; }
     .copybtn { padding: 3px 9px; font-size: 12px; border: 1px solid var(--blue); background: var(--blue);
-      color: #04222a; border-radius: 6px; cursor: pointer; font-weight: 700; }
-    .copybtn:hover { background: #22e0e0; }
+      color: #071528; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    .copybtn:hover { background: #7ab2ff; }
     .maplibregl-ctrl-group { background: var(--panel); }
     .maplibregl-ctrl-group button { filter: invert(1) hue-rotate(180deg); }
     #gate { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center;
-            justify-content: center; background: radial-gradient(circle at 50% 32%, #16233d, var(--bg)); }
+            justify-content: center; background: radial-gradient(circle at 55% 30%, #6d81a3, #35446599 55%, var(--bg)); }
+    .gate-card { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+                 border: 1px solid var(--glass-hi); border-radius: 20px; background: var(--glass); }
     .gate-card { text-align: center; max-width: 360px; padding: 40px 24px; }
     .gate-card .logo { font-size: 56px; line-height: 1; }
     .gate-card h1 { font-size: 26px; margin: 16px 0 10px; font-weight: 650; }
