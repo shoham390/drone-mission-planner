@@ -83,6 +83,10 @@ map.on('load', () => {
     paint: { 'circle-radius': ['case', ['get', 'sel'], 8, 6],
       'circle-color': ['case', ['get', 'sel'], '#ff3d7f', '#00e5ff'],
       'circle-stroke-width': 2, 'circle-stroke-color': '#04070a' } });
+  // near-invisible fat circle on top = a finger-sized hit target, so grabbing a
+  // handle on a phone isn't hit-or-miss against a 6px dot
+  map.addLayer({ id: 'verts-hit', type: 'circle', source: 'verts',
+    paint: { 'circle-radius': 22, 'circle-color': '#000', 'circle-opacity': 0.01 } });
   drawZones(); // zones may have loaded before the style was ready
   addAirspace(); // toggleable Israel airspace reference layer
 });
@@ -215,6 +219,7 @@ function resetPolys() {
 // click a polygon (while editing) to make it the one being edited
 map.on('click', 'zones-fill', (e) => {
   if (!editMode) return;
+  if (map.queryRenderedFeatures(e.point, { layers: ['verts-hit'] }).length) return; // tapped a handle, not the polygon
   const zi = zones.findIndex((z) => z.id === e.features[0].properties.id);
   if (zi >= 0) selectZone(zi);
 });
@@ -240,14 +245,14 @@ function moveVert(e) {
   drawZones();
 }
 const endVert = () => { if (dragVert) { dragVert = null; map.getCanvas().style.cursor = ''; } };
-map.on('mousedown', 'verts', grabVert);
-map.on('touchstart', 'verts', grabVert);
+map.on('mousedown', 'verts-hit', grabVert);
+map.on('touchstart', 'verts-hit', grabVert);
 map.on('mousemove', moveVert);
 map.on('touchmove', moveVert);
 map.on('mouseup', endVert);
 map.on('touchend', endVert);
-map.on('mouseenter', 'verts', () => { if (!dragVert) map.getCanvas().style.cursor = 'grab'; });
-map.on('mouseleave', 'verts', () => { if (!dragVert) map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.cursor = 'grab'; });
+map.on('mouseleave', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.cursor = ''; });
 // frame a single zone's polygon (used when its list row is tapped) with a
 // cinematic move: fly in AND tilt to 45° + swing the bearing 40° in ONE arc,
 // so it reads as a dynamic 3D reveal. Double-click the compass to reset.
