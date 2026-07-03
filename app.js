@@ -218,15 +218,18 @@ map.on('click', 'zones-fill', (e) => {
   const zi = zones.findIndex((z) => z.id === e.features[0].properties.id);
   if (zi >= 0) selectZone(zi);
 });
-map.on('mousedown', 'verts', (e) => {
-  e.preventDefault();          // stop the map from panning
+// grab a handle (mouse OR touch). preventDefault() is what stops the map from
+// panning under the finger — without the touch* bindings, a drag panned the map.
+function grabVert(e) {
+  if (e.points && e.points.length > 1) return; // second finger = let the map pinch/rotate
+  e.preventDefault();
   dragVert = e.features[0].properties;
   selVert = { zi: dragVert.zi, vi: dragVert.vi }; // touching a handle selects it
   cancelPress();               // don't let the long-press pin fire on a grab
   drawVerts();
   map.getCanvas().style.cursor = 'grabbing';
-});
-map.on('mousemove', (e) => {
+}
+function moveVert(e) {
   if (!dragVert) return;
   const z = zones[dragVert.zi]; ensureOrig(z);
   const ring = z.feature.geometry.coordinates[0];
@@ -235,8 +238,14 @@ map.on('mousemove', (e) => {
   ring[dragVert.vi] = p;
   if (dragVert.vi === 0 && wasClosed) ring[ring.length - 1] = p;
   drawZones();
-});
-map.on('mouseup', () => { if (dragVert) { dragVert = null; map.getCanvas().style.cursor = ''; } });
+}
+const endVert = () => { if (dragVert) { dragVert = null; map.getCanvas().style.cursor = ''; } };
+map.on('mousedown', 'verts', grabVert);
+map.on('touchstart', 'verts', grabVert);
+map.on('mousemove', moveVert);
+map.on('touchmove', moveVert);
+map.on('mouseup', endVert);
+map.on('touchend', endVert);
 map.on('mouseenter', 'verts', () => { if (!dragVert) map.getCanvas().style.cursor = 'grab'; });
 map.on('mouseleave', 'verts', () => { if (!dragVert) map.getCanvas().style.cursor = ''; });
 // frame a single zone's polygon (used when its list row is tapped) with a
