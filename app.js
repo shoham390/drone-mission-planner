@@ -165,7 +165,8 @@ function vertFeatures() {
 }
 function setEdit(on) {
   editMode = on;
-  if (!on) { selVert = null; selZone = null; }
+  if (on) { if (selZone == null || !zones[selZone]) selZone = zones.length ? 0 : null; } // show handles right away
+  else { selVert = null; selZone = null; }
   $('editctrls').style.display = on ? '' : 'none';
   updateEditUI();
   drawVerts();
