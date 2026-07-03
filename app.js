@@ -77,6 +77,10 @@ map.on('load', () => {
     paint: { 'fill-color': '#22e0e0', 'fill-opacity': 0.18 } });
   map.addLayer({ id: 'zones-line', type: 'line', source: 'zones',
     paint: { 'line-color': '#22e0e0', 'line-width': 2 } });
+  // dashed ghost of the as-loaded shape, drawn only for polygons that were edited
+  map.addSource('orig', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'orig-line', type: 'line', source: 'orig',
+    paint: { 'line-color': '#ff9800', 'line-width': 1.5, 'line-dasharray': [2, 2] } }, 'zones-line');
   // draggable vertex handles (hidden until "Edit vertices" is on)
   map.addSource('verts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'verts', type: 'circle', source: 'verts', // empty source when not editing = no handles drawn
@@ -142,6 +146,15 @@ function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
   drawVerts();
+  drawOrig();
+}
+// a zone is "edited" once its current ring differs from the snapshot taken on first touch
+let showOrig = true;
+const isEdited = (z) => z.origRing && JSON.stringify(z.feature.geometry.coordinates[0]) !== JSON.stringify(z.origRing);
+function drawOrig() {
+  const feats = showOrig ? zones.filter(isEdited).map((z) => (
+    { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [z.origRing] } })) : [];
+  map.getSource('orig')?.setData({ type: 'FeatureCollection', features: feats });
 }
 function drawVerts() {
   map.getSource('verts')?.setData(editMode ? vertFeatures() : { type: 'FeatureCollection', features: [] });
@@ -487,6 +500,7 @@ function planRoute() {
 }
 
 $('editverts').onchange = (e) => setEdit(e.target.checked);
+$('origtoggle').onchange = (e) => { showOrig = e.target.checked; drawOrig(); };
 $('vadd').onclick = addVert;
 $('vdel').onclick = removeVert;
 $('vreset').onclick = resetPolys;
