@@ -119,6 +119,10 @@ async function addAirspace() {
 
 const $ = (id) => document.getElementById(id);
 
+// iOS Safari only fires CSS :active (our press-glow) when the page has a touch
+// listener — this no-op enables it globally, incl. the dynamic .zone boxes.
+document.addEventListener('touchstart', () => {}, { passive: true });
+
 // one switch shows/hides all airspace categories (CTR / P / R / border) at once
 const AIR_CATS = ['CTR', 'P', 'R', 'border'];
 const airCats = new Set();
