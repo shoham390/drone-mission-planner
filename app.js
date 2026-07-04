@@ -119,8 +119,7 @@ async function addAirspace() {
 
 const $ = (id) => document.getElementById(id);
 
-// one switch per category (CTR / P / R / border), plus an "All" switch that
-// flips every category switch at once; filter both layers to the enabled set
+// one switch shows/hides all airspace categories (CTR / P / R / border) at once
 const AIR_CATS = ['CTR', 'P', 'R', 'border'];
 const airCats = new Set();
 function applyAirFilter() {
@@ -130,14 +129,9 @@ function applyAirFilter() {
     map.setLayoutProperty(id, 'visibility', airCats.size ? 'visible' : 'none');
   }
 }
-for (const cat of AIR_CATS) {
-  $('air-' + cat).onchange = (e) => { e.target.checked ? airCats.add(cat) : airCats.delete(cat); applyAirFilter(); };
-}
 $('air-all').onchange = (e) => {
-  for (const cat of AIR_CATS) {
-    $('air-' + cat).checked = e.target.checked;
-    e.target.checked ? airCats.add(cat) : airCats.delete(cat);
-  }
+  airCats.clear();
+  if (e.target.checked) for (const cat of AIR_CATS) airCats.add(cat);
   applyAirFilter();
 };
 
@@ -280,6 +274,7 @@ function flyToZone(z) {
   map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 45, bearing: 40,
     duration: 900, essential: true });
 }
+$('fit').onclick = () => fitZones();
 function fitZones(opts) {
   if (!zones.length) return;
   const b = new maplibregl.LngLatBounds();
@@ -365,23 +360,32 @@ document.addEventListener('click', (e) => { // Copy button in the coordinate pop
 // One shared callback serves both first sign-in and driveFetch's silent
 // mid-session refreshes — it's idempotent, so re-running the sign-in UI
 // bits on a refresh is harmless.
-let tokenClient, tokenWaiter;
+let tokenClient, tokenWaiter, refreshing;
+// ponytail: cache the ~1h token in sessionStorage (tab-scoped, gone on tab close) so a
+// reload inside the hour re-enters silently — no auth flash, no repeat Google popup.
+const TOKEN_KEY = 'dmp_token';
+function enterApp() {
+  $('gate').style.display = 'none';
+  map.resize(); // container sized after the gate hid
+  $('save').disabled = false;
+  refreshMissions(); // show the saved missions right away
+}
 function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPE,
     callback: (resp) => {
       accessToken = resp.access_token;
-      $('gate').style.display = 'none'; // enter the app
-      map.resize(); // container sized after the gate hid
-      $('save').disabled = false;
-      refreshMissions(); // show the saved-missions list right away
-      showFolderLink(); // reveal the "open Drive folder" link (creates the folder if needed)
+      sessionStorage.setItem(TOKEN_KEY, accessToken);
+      enterApp();
       tokenWaiter?.(); tokenWaiter = null;
     },
-    // no session/consent to refresh silently — put the sign-in gate back up so
-    // the fix is obvious instead of Drive calls failing quietly forever.
-    error_callback: () => { tokenWaiter?.(); tokenWaiter = null; $('gate').style.display = 'flex'; },
+    // no session/consent to refresh silently — drop the dead token and put the gate
+    // back up so the fix is obvious instead of Drive calls failing quietly forever.
+    error_callback: () => {
+      sessionStorage.removeItem(TOKEN_KEY); accessToken = null;
+      tokenWaiter?.(); tokenWaiter = null; $('gate').style.display = 'flex';
+    },
   });
 }
 // every Drive call goes through here: on 401 (expired token) refresh silently
@@ -390,7 +394,11 @@ async function driveFetch(url, opts = {}) {
   const call = () => fetch(url, { ...opts, headers: { Authorization: `Bearer ${accessToken}`, ...opts.headers } });
   let r = await call();
   if (r.status === 401) {
-    await new Promise((res) => { tokenWaiter = res; tokenClient.requestAccessToken({ prompt: '' }); });
+    // one silent refresh at a time: concurrent 401s share it instead of clobbering
+    // tokenWaiter (which orphaned a promise -> hung Drive call -> "load needs a refresh").
+    refreshing ??= new Promise((res) => { tokenWaiter = res; tokenClient.requestAccessToken({ prompt: '' }); })
+      .finally(() => { refreshing = null; });
+    await refreshing;
     r = await call();
   }
   return r;
@@ -399,12 +407,13 @@ $('signin').onclick = () => {
   if (!tokenClient) initAuth();
   tokenClient.requestAccessToken();
 };
-// "Remember me" = Google's own session, not ours: try a silent, UI-less reauth on
-// load (works if the user already granted access and is still signed in to Google).
-// ponytail: no token storage to manage — if third-party cookies are blocked the
-// hidden iframe just fails and the gate stays up, same as first-time sign-in.
+// On load: reuse a cached token (silent, no popup); an expired one just 401s on the
+// first Drive call and refreshes. No cache -> silent Google reauth; if that fails
+// (e.g. third-party cookies blocked) the gate stays up, same as first-time sign-in.
 initAuth();
-tokenClient.requestAccessToken({ prompt: '' });
+accessToken = sessionStorage.getItem(TOKEN_KEY);
+if (accessToken) enterApp();
+else tokenClient.requestAccessToken({ prompt: '' });
 
 // ---- KML/KMZ -> GeoJSON ----
 async function fileToGeoJSON(file) {
@@ -540,7 +549,8 @@ function render() {
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
       `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
-    div.querySelector('b').addEventListener('click', () => { // tap the name to zoom to it
+    div.addEventListener('click', (e) => { // tap anywhere on the box to zoom to it
+      if (e.target.closest('a')) return; // ...except the nav-icon links
       flyToZone(z);
       if (editMode) selectZone(zones.indexOf(z)); // ...and pick it for editing
     });
@@ -577,11 +587,6 @@ async function getFolderId() {
   });
   return (folderId = (await c.json()).id);
 }
-async function showFolderLink() {
-  const a = $('drivefolder');
-  a.href = `https://drive.google.com/drive/folders/${await getFolderId()}`;
-  a.style.display = 'inline';
-}
 
 // Same-name file already saved by this app? Update it in place instead of creating
 // a duplicate — one file per name keeps the Drive folder's storage monitorable.
@@ -605,7 +610,7 @@ async function driveUpload(name, mimeType, base64) {
     `https://www.googleapis.com/upload/drive/v3/files${id ? '/' + id : ''}?uploadType=multipart`,
     { method: id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
-  if (!r.ok) throw new Error(`Drive upload failed (${r.status})`);
+  if (!r.ok) throw new Error('save failed, try again');
   return r.json();
 }
 const driveUploadBlob = async (file) =>
@@ -616,9 +621,12 @@ $('save').onclick = async () => {
   if (!zones.length) return alert('Nothing to save.');
   const name = ($('mname').value.trim() || 'mission') + '.mission.json';
   const doc = { name, zones: zones.map((z, i) => ({ order: i + 1, name: z.name, feature: z.feature })) };
-  try { await driveUpload(name, 'application/json', b64(JSON.stringify(doc))); }
-  catch (err) { return alert(`Save failed: ${err.message}`); } // never fail silently
-  alert(`Saved ${name} to Drive.`);
+  // inline button feedback instead of a blocking alert — no "Drive"/filename chatter
+  const btn = $('save'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try { await driveUpload(name, 'application/json', b64(JSON.stringify(doc))); btn.textContent = 'Saved ✓'; }
+  catch { btn.textContent = 'Save failed'; } // never fail silently
+  setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 1500);
   refreshMissions(); // the new mission shows up in the list
 };
 
@@ -632,7 +640,7 @@ async function refreshMissions() {
     // q=trashed=false: Drive v3 lists trashed files by default, so a just-deleted
     // mission would reappear here without this filter.
     'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=modifiedTime desc&q=trashed%3Dfalse&fields=files(id,name)');
-  if (!r.ok) return alert(`Couldn't list missions (${r.status})`);
+  if (!r.ok) return alert("Couldn't load your saved missions — try again.");
   const { files = [] } = await r.json();
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
   const sel = $('missions');
@@ -651,19 +659,19 @@ $('delmission').onclick = async () => {
   // the "Load mission…" placeholder is selected — there's nothing to delete yet
   if (!sel.value) return alert('Pick the mission to delete from the list first.');
   const name = sel.options[sel.selectedIndex]?.text;
-  if (!confirm(`Delete "${name}"? It moves to your Google Drive trash.`)) return;
+  if (!confirm(`Delete "${name}"?`)) return;
   const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sel.value}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ trashed: true }),
   });
-  if (!r.ok) return alert(`Delete failed (${r.status})`);
+  if (!r.ok) return alert("Couldn't delete that mission — try again.");
   refreshMissions(); // back to the placeholder — nothing auto-loads
 };
 
 async function loadMission(id, name) {
   const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
-  if (!r.ok) return alert(`Load failed (${r.status})`); // was a silent nothing-happens
+  if (!r.ok) return alert("Couldn't load that mission — try again."); // never a silent no-op
   const doc = await r.json();
   if (name) $('mname').value = name; // so Save overwrites the loaded mission by default
   numberMarkers.forEach((m) => m.remove());

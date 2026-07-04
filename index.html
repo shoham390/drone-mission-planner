@@ -32,6 +32,8 @@
              background: var(--glass); color: var(--text); font: inherit; transition: .15s;
              backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
     button:hover:not(:disabled) { background: rgba(255,255,255,.12); border-color: rgba(150,190,255,.4); }
+    button:active:not(:disabled), .upload-btn:active {
+      box-shadow: var(--glow); border-color: var(--accent); transform: translateY(1px); }
     button:disabled { opacity: .4; cursor: not-allowed; }
     button.primary { background: linear-gradient(180deg, #22f0ff, #00c8d8); border-color: #6ffcff;
                      color: #022027; font-weight: 700; box-shadow: var(--glow); border-radius: 999px; }
@@ -64,8 +66,9 @@
     #routelink:hover { text-decoration: underline; }
     #list { display: flex; flex-direction: column; gap: 8px; }
     .zone { padding: 10px 12px; background: var(--glass); border: 1px solid var(--glass-hi); border-radius: 12px;
-            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer; transition: .15s;
             box-shadow: 0 1px 0 rgba(255,255,255,.08) inset; }
+    .zone:active { box-shadow: var(--glow); border-color: var(--accent); transform: translateY(1px); }
     .zone b { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 600; cursor: pointer; }
     .zone a { font-size: 12px; color: var(--blue); text-decoration: none; margin-right: 10px; }
     .zone a:hover { text-decoration: underline; }
@@ -152,8 +155,20 @@
         <input id="files" type="file" accept=".kml,.kmz" multiple hidden />
         <label for="files" class="upload-btn">⬆ Upload KML / KMZ</label>
       </div>
+      <div class="field">
+        <label class="field-label">Project name</label>
+        <div class="row">
+          <input id="mname" placeholder="project name" />
+        </div>
+      </div>
+      <div class="row">
+        <button id="save" disabled>Save mission</button>
+        <select id="missions" style="display:none"></select>
+        <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
+      </div>
       <div class="row">
         <button id="clear">Clear all</button>
+        <button id="fit">Fit</button>
         <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
       </div>
       <div class="field">
@@ -178,18 +193,6 @@
         </div>
       </div>
       <div class="field">
-        <label class="field-label">Project name</label>
-        <div class="row">
-          <input id="mname" placeholder="project name" />
-        </div>
-      </div>
-      <div class="row">
-        <button id="save" disabled>Save mission</button>
-        <select id="missions" style="display:none"></select>
-        <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
-      </div>
-      <a id="drivefolder" target="_blank" rel="noopener" style="display:none; font-size:12px; color:var(--blue); text-decoration:none;">📁 Open Drive folder</a>
-      <div class="field">
         <label class="field-label">Pin location</label>
         <div class="row switchrow">
           <span>Center</span>
@@ -201,23 +204,6 @@
         <label class="field-label">Airspace overlay</label>
         <div class="row switchrow">
           <label class="switch"><input type="checkbox" id="air-all" /><span class="slider"></span></label>
-          <span>All</span>
-        </div>
-        <div class="row switchrow">
-          <label class="switch"><input type="checkbox" id="air-CTR" /><span class="slider"></span></label>
-          <span style="color:#3b82f6">CTR</span>
-        </div>
-        <div class="row switchrow">
-          <label class="switch"><input type="checkbox" id="air-P" /><span class="slider"></span></label>
-          <span style="color:#ef4444">Prohibited</span>
-        </div>
-        <div class="row switchrow">
-          <label class="switch"><input type="checkbox" id="air-R" /><span class="slider"></span></label>
-          <span style="color:#f59e0b">Restricted</span>
-        </div>
-        <div class="row switchrow">
-          <label class="switch"><input type="checkbox" id="air-border" /><span class="slider"></span></label>
-          <span style="color:#22c55e">Border</span>
         </div>
       </div>
       <div id="list"></div>
