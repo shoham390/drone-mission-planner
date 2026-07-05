@@ -414,10 +414,22 @@ $('signin').onclick = () => {
 // On load: reuse a cached token (silent, no popup); an expired one just 401s on the
 // first Drive call and refreshes. No cache -> silent Google reauth; if that fails
 // (e.g. third-party cookies blocked) the gate stays up, same as first-time sign-in.
-initAuth();
-accessToken = sessionStorage.getItem(TOKEN_KEY);
-if (accessToken) enterApp();
-else tokenClient.requestAccessToken({ prompt: '' });
+// The GSI library (index.html) loads async, so `google` may not exist yet when this
+// module runs — calling initAuth() too early threw and left auth dead until a refresh
+// warmed the cache. Wait for it. ponytail: 50ms poll; GSI has no ready event we can
+// rely on for both cold + cached loads.
+function startAuth() {
+  initAuth();
+  accessToken = sessionStorage.getItem(TOKEN_KEY);
+  if (accessToken) enterApp();
+  else tokenClient.requestAccessToken({ prompt: '' });
+}
+if (window.google?.accounts?.oauth2) startAuth();
+else {
+  const t = setInterval(() => {
+    if (window.google?.accounts?.oauth2) { clearInterval(t); startAuth(); }
+  }, 50);
+}
 
 // ---- KML/KMZ -> GeoJSON ----
 async function fileToGeoJSON(file) {
