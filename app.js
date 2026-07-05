@@ -553,20 +553,32 @@ const MAPS_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="
 const WAZE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
 const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34a853" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>';
 
+// per-polygon "mission complete" marks, persisted in localStorage so they survive
+// leaving/closing the app. Keyed by mission name + zone name — no backend, no Drive
+// write per tick. ponytail: renaming the mission or a zone orphans its mark; fine.
+const markKey = (z) => `mark:${$('mname').value}::${z.name}`;
+
 function render() {
   $('list').innerHTML = '';
   zones.forEach((z, i) => {
     const div = document.createElement('div');
     div.className = 'zone';
+    const done = z.done = localStorage.getItem(markKey(z)) === '1';
+    div.classList.toggle('done', done);
     const kml = 'data:application/vnd.google-earth.kml+xml;charset=utf-8,' +
       encodeURIComponent(zoneKml(z.name, z.feature.geometry.coordinates[0]));
     div.innerHTML =
-      `<b><span class="num">${i + 1}</span> ${z.name}</b>` +
+      `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${z.name}</b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
       `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
+    div.querySelector('.donebox').onchange = (e) => {
+      z.done = e.target.checked;
+      if (z.done) localStorage.setItem(markKey(z), '1'); else localStorage.removeItem(markKey(z));
+      div.classList.toggle('done', z.done);
+    };
     div.addEventListener('click', (e) => { // tap anywhere on the box to zoom to it
-      if (e.target.closest('a')) return; // ...except the nav-icon links
+      if (e.target.closest('a') || e.target.type === 'checkbox') return; // ...except links & the mark
       flyToZone(z);
       if (editMode) selectZone(zones.indexOf(z)); // ...and pick it for editing
     });
