@@ -266,6 +266,9 @@ function frameRoi(z, duration) {
   const a = centroid(z.feature.geometry.coordinates[0]); // [lng,lat]
   const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
   const label = km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+  const color = km <= 1 ? '#ff9800' : '#00e5ff'; // turn orange once you're within 1 km
+  map.setPaintProperty('roibox-line', 'line-color', color);
+  map.setPaintProperty('roibox-dist', 'text-color', color);
   const mid = [(a[0] + userLoc[0]) / 2, (a[1] + userLoc[1]) / 2];
   map.getSource('roibox')?.setData({ type: 'FeatureCollection', features: [
     { type: 'Feature', geometry: { type: 'LineString', coordinates: [a, userLoc] } },
