@@ -117,52 +117,13 @@ map.on('load', () => {
   map.addLayer({ id: 'verts-hit', type: 'circle', source: 'verts',
     paint: { 'circle-radius': 22, 'circle-color': '#000', 'circle-opacity': 0.01 } });
   drawZones(); // zones may have loaded before the style was ready
-  addAirspace(); // toggleable Israel airspace reference layer
 });
-
-// ---- Israel airspace overlay: CTR / prohibited / restricted (toggle in panel) ----
-// Sources: LLP/LLR = official Israel eAIP ENR 5.1 AIRAC 2025-10-02 (exact coords, arcs
-// computed); CTR = OpenAIP; border = standard state boundary (reference only).
-// PLANNING AID, NOT FOR CLEARANCE. No danger areas (LLD) — Israel's civil AIP lists none.
-const AIR_COLOR = ['match', ['get', 'cat'], 'CTR', '#3b82f6', 'P', '#ef4444', 'R', '#f59e0b', 'border', '#22c55e', '#888'];
-async function addAirspace() {
-  const data = await (await fetch('./airspace.geojson' + new URL(import.meta.url).search)).json();
-  map.addSource('airspace', { type: 'geojson', data });
-  map.addLayer({ id: 'airspace-fill', type: 'fill', source: 'airspace', layout: { visibility: 'none' },
-    paint: { 'fill-color': AIR_COLOR, 'fill-opacity': ['match', ['get', 'cat'], 'P', 0.22, 0.1] } });
-  map.addLayer({ id: 'airspace-line', type: 'line', source: 'airspace', layout: { visibility: 'none' },
-    paint: { 'line-color': AIR_COLOR, 'line-width': ['match', ['get', 'cat'], 'border', 2.4, 1.6] } });
-  map.on('click', 'airspace-fill', (e) => {
-    const p = e.features[0].properties;
-    new maplibregl.Popup({ offset: 6 }).setLngLat(e.lngLat)
-      .setHTML(`<span class="coordtxt">${p.name}</span><span style="color:var(--muted)">${p.band}</span>`).addTo(map);
-  });
-  map.on('mouseenter', 'airspace-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'airspace-fill', () => { map.getCanvas().style.cursor = ''; });
-  applyAirFilter(); // sync with any switches toggled before the async load
-}
 
 const $ = (id) => document.getElementById(id);
 
 // iOS Safari only fires CSS :active (our press-glow) when the page has a touch
 // listener — this no-op enables it globally, incl. the dynamic .zone boxes.
 document.addEventListener('touchstart', () => {}, { passive: true });
-
-// one switch shows/hides all airspace categories (CTR / P / R / border) at once
-const AIR_CATS = ['CTR', 'P', 'R', 'border'];
-const airCats = new Set();
-function applyAirFilter() {
-  const f = ['in', ['get', 'cat'], ['literal', [...airCats]]];
-  for (const id of ['airspace-fill', 'airspace-line']) if (map.getLayer(id)) {
-    map.setFilter(id, f);
-    map.setLayoutProperty(id, 'visibility', airCats.size ? 'visible' : 'none');
-  }
-}
-$('air-all').onchange = (e) => {
-  airCats.clear();
-  if (e.target.checked) for (const cat of AIR_CATS) airCats.add(cat);
-  applyAirFilter();
-};
 
 // push current zones into the map source (+ the editable vertex handles)
 function drawZones() {
