@@ -51,9 +51,24 @@ const map = new maplibregl.Map({
   },
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left'); // zoom + tilt/compass
-map.addControl(new maplibregl.GeolocateControl({                                        // live position dot + follow
+const geolocate = new maplibregl.GeolocateControl({                                     // live position dot + follow
   positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showUserHeading: true,
-}), 'top-left');
+});
+map.addControl(geolocate, 'top-left');
+
+// ---- ROI: when on, framing a zone also fits the user's live location in view ----
+// Turning the switch on kicks off live location (same as tapping the geolocate dot).
+// ponytail: the checkbox is the source of truth — read .checked, no shadow flag.
+let userLoc = null, roiZone = null; // roiZone = target framed by ROI, re-fit as you move
+geolocate.on('geolocate', (e) => {
+  userLoc = [e.coords.longitude, e.coords.latitude];
+  if ($('roi').checked && roiZone) frameRoi(roiZone, 500); // keep both in view while driving
+});
+document.getElementById('roi').onchange = (e) => {
+  if (e.target.checked) { geolocate.trigger(); if (roiZone && userLoc) frameRoi(roiZone, 900); }
+  else map.getSource('roibox')?.setData(EMPTY_FC); // drop the frame when ROI is off
+  roiNote();
+};
 
 // ---- mobile: drag the split bar to resize map vs. panel ----
 // map sits at the top (column-reverse), so the pointer's Y ≈ desired map height.
@@ -81,6 +96,10 @@ map.on('load', () => {
   map.addSource('orig', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'orig-line', type: 'line', source: 'orig',
     paint: { 'line-color': '#ff9800', 'line-width': 1.5, 'line-dasharray': [2, 2] } }, 'zones-line');
+  // ROI: dashed rectangle around the framed region (target + live position)
+  map.addSource('roibox', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'roibox-line', type: 'line', source: 'roibox',
+    paint: { 'line-color': '#00e5ff', 'line-width': 2, 'line-dasharray': [3, 2] } });
   // draggable vertex handles (hidden until "Edit vertices" is on)
   map.addSource('verts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'verts', type: 'circle', source: 'verts', // empty source when not editing = no handles drawn
@@ -264,18 +283,35 @@ map.on('mouseup', endVert);
 map.on('touchend', endVert);
 map.on('mouseenter', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.cursor = 'grab'; });
 map.on('mouseleave', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.cursor = ''; });
-// frame a single zone's polygon (used when its list row is tapped) with a
-// cinematic move: fly in AND tilt to 45° + swing the bearing 40° in ONE arc,
-// so it reads as a dynamic 3D reveal. Double-click the compass to reset.
-// ponytail: one flyTo, not a fitBounds+timer chain — the timer let the tilt
-// interrupt a half-finished zoom on slower phones, tilting the wrong spot.
+// frame a single zone's polygon (used when its list row is tapped): fly in
+// flat and north-up, no tilt or bearing swing. Double-click the compass to reset.
+// ponytail: one flyTo, not a fitBounds+timer chain — the timer let the move
+// interrupt a half-finished zoom on slower phones, framing the wrong spot.
 // essential: true = still animates when the OS has "reduce motion" enabled.
+// fit the target polygon AND the live position in one frame; re-called on each
+// location update while driving (shorter duration) so the frame tracks you.
+function frameRoi(z, duration) {
+  const b = new maplibregl.LngLatBounds();
+  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
+  b.extend(userLoc);
+  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
+  const sw = b.getSouthWest(), ne = b.getNorthEast(); // dashed frame around the region
+  map.getSource('roibox')?.setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[
+    [sw.lng, sw.lat], [ne.lng, sw.lat], [ne.lng, ne.lat], [sw.lng, ne.lat], [sw.lng, sw.lat]]] } });
+}
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+// note under the switch is shown only when ROI is on but nothing's been tapped yet
+function roiNote() { $('roi-note').style.display = $('roi').checked && !roiZone ? '' : 'none'; }
 function flyToZone(z) {
+  roiZone = z; // remember the target so ROI can re-frame it as the live position moves
+  roiNote();
+  // ROI on (with a fix): frame the target + your live position, else just the polygon.
+  if ($('roi').checked && userLoc) { frameRoi(z, 900); return; }
   const b = new maplibregl.LngLatBounds();
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
   const cam = map.cameraForBounds(b, { padding: 80, maxZoom: 16 });
   if (!cam) return; // degenerate ring — nothing to frame
-  map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 45, bearing: 40,
+  map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 0, bearing: 0,
     duration: 900, essential: true });
 }
 $('fit').onclick = () => fitZones();
