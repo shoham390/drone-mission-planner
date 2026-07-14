@@ -207,7 +207,6 @@
         <div class="row switchrow">
           <label class="switch"><input type="checkbox" id="roi" /><span class="slider"></span></label>
         </div>
-        <div id="roi-note" class="field-label" style="margin-top:6px; display:none">No polygon selected</div>
       </div>
       <div class="field">
         <label class="field-label">Airspace overlay</label>
@@ -219,7 +218,7 @@
     </div>
   </div>
   <div id="dragbar"></div>
-  <div id="map"></div>
+  <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div></div>
 
   <script src="https://accounts.google.com/gsi/client" async></script>
   <!-- cache-bust: GitHub Pages caches app.js/geo.js for 10 min; always load the

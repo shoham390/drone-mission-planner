@@ -5,7 +5,7 @@ import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
 // import geo.js with app.js's own ?v= cache-buster so it never serves stale
 const {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine,
 } = await import('./geo.js' + new URL(import.meta.url).search);
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -62,10 +62,11 @@ map.addControl(geolocate, 'top-left');
 let userLoc = null, roiZone = null; // roiZone = target framed by ROI, re-fit as you move
 geolocate.on('geolocate', (e) => {
   userLoc = [e.coords.longitude, e.coords.latitude];
-  if ($('roi').checked && roiZone) frameRoi(roiZone, 500); // keep both in view while driving
+  if (!$('roi').checked) return;
+  roiZone ? frameRoi(roiZone, 500) : frameRoiAll(500); // no target yet → keep you + all zones in view
 });
 document.getElementById('roi').onchange = (e) => {
-  if (e.target.checked) { geolocate.trigger(); if (roiZone && userLoc) frameRoi(roiZone, 900); }
+  if (e.target.checked) { geolocate.trigger(); if (userLoc) (roiZone ? frameRoi(roiZone, 900) : frameRoiAll(900)); }
   else map.getSource('roibox')?.setData(EMPTY_FC); // drop the frame when ROI is off
   roiNote();
 };
@@ -96,10 +97,15 @@ map.on('load', () => {
   map.addSource('orig', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'orig-line', type: 'line', source: 'orig',
     paint: { 'line-color': '#ff9800', 'line-width': 1.5, 'line-dasharray': [2, 2] } }, 'zones-line');
-  // ROI: dashed rectangle around the framed region (target + live position)
+  // ROI: dashed line from the target to your live position, with a distance label at its midpoint
   map.addSource('roibox', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'roibox-line', type: 'line', source: 'roibox',
+    filter: ['==', ['geometry-type'], 'LineString'],
     paint: { 'line-color': '#00e5ff', 'line-width': 2, 'line-dasharray': [3, 2] } });
+  map.addLayer({ id: 'roibox-dist', type: 'symbol', source: 'roibox',
+    filter: ['==', ['geometry-type'], 'Point'],
+    layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': 13 },
+    paint: { 'text-color': '#00e5ff', 'text-halo-color': '#04070a', 'text-halo-width': 1.6 } });
   // draggable vertex handles (hidden until "Edit vertices" is on)
   map.addSource('verts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'verts', type: 'circle', source: 'verts', // empty source when not editing = no handles drawn
@@ -295,13 +301,38 @@ function frameRoi(z, duration) {
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
   b.extend(userLoc);
   map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
-  const sw = b.getSouthWest(), ne = b.getNorthEast(); // dashed frame around the region
-  map.getSource('roibox')?.setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[
-    [sw.lng, sw.lat], [ne.lng, sw.lat], [ne.lng, ne.lat], [sw.lng, ne.lat], [sw.lng, sw.lat]]] } });
+  // dashed line target→you, with the distance labelled at its midpoint
+  const a = centroid(z.feature.geometry.coordinates[0]); // [lng,lat]
+  const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
+  const label = km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+  const mid = [(a[0] + userLoc[0]) / 2, (a[1] + userLoc[1]) / 2];
+  map.getSource('roibox')?.setData({ type: 'FeatureCollection', features: [
+    { type: 'Feature', geometry: { type: 'LineString', coordinates: [a, userLoc] } },
+    { type: 'Feature', properties: { label }, geometry: { type: 'Point', coordinates: mid } },
+  ] });
+}
+// ROI on but no polygon picked yet: fit your live position + every loaded zone, no target line.
+function frameRoiAll(duration) {
+  if (!userLoc) return;
+  const b = new maplibregl.LngLatBounds();
+  for (const z of zones) for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
+  b.extend(userLoc);
+  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
+  map.getSource('roibox')?.setData(EMPTY_FC);
 }
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
-// note under the switch is shown only when ROI is on but nothing's been tapped yet
-function roiNote() { $('roi-note').style.display = $('roi').checked && !roiZone ? '' : 'none'; }
+// flash "select a polygon" in the middle of the map for a few seconds, then fade out
+let noteTimer;
+function roiNote() {
+  const n = $('roi-note');
+  clearTimeout(noteTimer);
+  if (!($('roi').checked && !roiZone)) { n.style.display = 'none'; return; }
+  n.style.display = 'block'; n.style.opacity = '1';
+  noteTimer = setTimeout(() => {
+    n.style.opacity = '0';
+    setTimeout(() => { n.style.display = 'none'; }, 400); // wait out the fade
+  }, 2500);
+}
 function flyToZone(z) {
   roiZone = z; // remember the target so ROI can re-frame it as the live position moves
   roiNote();
