@@ -63,10 +63,10 @@ let userLoc = null, roiZone = null; // roiZone = target framed by ROI, re-fit as
 geolocate.on('geolocate', (e) => {
   userLoc = [e.coords.longitude, e.coords.latitude];
   if (!$('roi').checked) return;
-  roiZone ? frameRoi(roiZone, 500) : frameRoiAll(500); // no target yet → keep you + all zones in view
+  frameRoi(500); // tracks the ping-or-polygon target; falls back to fit-all when neither
 });
 document.getElementById('roi').onchange = (e) => {
-  if (e.target.checked) { geolocate.trigger(); if (userLoc) (roiZone ? frameRoi(roiZone, 900) : frameRoiAll(900)); }
+  if (e.target.checked) { geolocate.trigger(); if (userLoc) frameRoi(900); }
   else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); } // drop the frame when ROI is off
   roiNote();
 };
@@ -251,15 +251,17 @@ map.on('mouseleave', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.c
 // ponytail: one flyTo, not a fitBounds+timer chain — the timer let the move
 // interrupt a half-finished zoom on slower phones, framing the wrong spot.
 // essential: true = still animates when the OS has "reduce motion" enabled.
-// fit the target polygon AND the live position in one frame; re-called on each
-// location update while driving (shorter duration) so the frame tracks you.
-function frameRoi(z, duration) {
-  const b = new maplibregl.LngLatBounds();
-  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
-  b.extend(userLoc);
-  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
-  // dashed line target→you, with the distance labelled at its midpoint
-  const a = centroid(z.feature.geometry.coordinates[0]); // [lng,lat]
+// The ROI target [lng,lat]: a dropped map ping takes priority over the selected polygon.
+function roiTarget() {
+  if (coordPin) { const p = coordPin.getLngLat(); return [p.lng, p.lat]; }
+  if (roiZone) return centroid(roiZone.feature.geometry.coordinates[0]);
+  return null;
+}
+// Draw the dashed line target→you + distance chip, WITHOUT moving the camera
+// (so it can update live while a ping is dragged). Clears both if there's no target.
+function drawRoiLine() {
+  const a = roiTarget();
+  if (!userLoc || !a) { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); return; }
   const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
   const label = km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
   const color = km <= 1 ? '#ff9800' : '#00e5ff'; // turn orange once you're within 1 km
@@ -269,6 +271,19 @@ function frameRoi(z, duration) {
     { type: 'Feature', geometry: { type: 'LineString', coordinates: [a, userLoc] } },
   ] });
   showDist(mid, label, color);
+}
+// Frame the target + live position in one frame, then draw the line. Re-called on
+// each location update while driving (shorter duration) so the frame tracks you.
+function frameRoi(duration) {
+  if (!userLoc) return;
+  const a = roiTarget();
+  if (!a) return frameRoiAll(duration); // nothing to point at → fit you + all zones
+  const b = new maplibregl.LngLatBounds();
+  b.extend(userLoc); b.extend(a);
+  // frame the whole polygon (not just its centroid) when pointing at a polygon, not a ping
+  if (!coordPin && roiZone) for (const c of roiZone.feature.geometry.coordinates[0]) b.extend(c);
+  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
+  drawRoiLine();
 }
 // distance chip as a DOM marker: glides with your position (no symbol flicker) and
 // carries a solid background so the number stays legible over any map imagery.
@@ -308,7 +323,7 @@ function flyToZone(z) {
   roiZone = z; // remember the target so ROI can re-frame it as the live position moves
   roiNote();
   // ROI on (with a fix): frame the target + your live position, else just the polygon.
-  if ($('roi').checked && userLoc) { frameRoi(z, 900); return; }
+  if ($('roi').checked && userLoc) { frameRoi(900); return; }
   const b = new maplibregl.LngLatBounds();
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
   const cam = map.cameraForBounds(b, { padding: 80, maxZoom: 16 });
@@ -357,10 +372,12 @@ function dropPin(lngLat) {
       // long-press's mouseup reads as "clicked outside the popup" and closes it
       // instantly; our own map click handler already owns hiding the pin.
       .setPopup(new maplibregl.Popup({ closeButton: false, offset: 26, closeOnClick: false }));
-    coordPin.on('drag', showCoord);
+    // while dragging the ping, keep the ROI line glued to it (no camera move)
+    coordPin.on('drag', () => { showCoord(); if ($('roi').checked) drawRoiLine(); });
   }
   coordPin.setLngLat(lngLat).addTo(map);
   showCoord();
+  if ($('roi').checked && userLoc) frameRoi(600); // ping takes priority as the ROI target
 }
 // Press and hold ~500ms with ONE finger to drop the pin (like Google Earth/Maps).
 // It never pops up during navigation: a second finger (pinch/tilt/rotate), any
@@ -387,7 +404,8 @@ map.on('touchmove', movePress);
 for (const ev of ['mouseup', 'touchend', 'touchcancel', 'dragstart', 'zoomstart', 'rotatestart', 'pitchstart']) map.on(ev, cancelPress);
 map.on('click', () => {
   if (justDropped) { justDropped = false; return; } // the long-press that just dropped it
-  if (coordPin) { coordPin.remove(); coordPin = null; } // tap clears the pin
+  if (coordPin) { coordPin.remove(); coordPin = null; // tap clears the pin
+    if ($('roi').checked && userLoc) frameRoi(600); } // ROI line reverts to the selected polygon
 });
 document.addEventListener('click', (e) => { // Copy button in the coordinate popup
   const btn = e.target.closest('.copybtn');
