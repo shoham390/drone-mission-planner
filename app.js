@@ -67,7 +67,7 @@ geolocate.on('geolocate', (e) => {
 });
 document.getElementById('roi').onchange = (e) => {
   if (e.target.checked) { geolocate.trigger(); if (userLoc) (roiZone ? frameRoi(roiZone, 900) : frameRoiAll(900)); }
-  else map.getSource('roibox')?.setData(EMPTY_FC); // drop the frame when ROI is off
+  else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); } // drop the frame when ROI is off
   roiNote();
 };
 
@@ -97,15 +97,11 @@ map.on('load', () => {
   map.addSource('orig', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'orig-line', type: 'line', source: 'orig',
     paint: { 'line-color': '#ff9800', 'line-width': 1.5, 'line-dasharray': [2, 2] } }, 'zones-line');
-  // ROI: dashed line from the target to your live position, with a distance label at its midpoint
+  // ROI: dashed line target→you. The distance chip is a DOM marker (see showDist),
+  // not a symbol layer — symbols flicker/re-fade on every location update.
   map.addSource('roibox', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'roibox-line', type: 'line', source: 'roibox',
-    filter: ['==', ['geometry-type'], 'LineString'],
     paint: { 'line-color': '#00e5ff', 'line-width': 2, 'line-dasharray': [3, 2] } });
-  map.addLayer({ id: 'roibox-dist', type: 'symbol', source: 'roibox',
-    filter: ['==', ['geometry-type'], 'Point'],
-    layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': 13 },
-    paint: { 'text-color': '#00e5ff', 'text-halo-color': '#04070a', 'text-halo-width': 1.6 } });
   // draggable vertex handles (hidden until "Edit vertices" is on)
   map.addSource('verts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'verts', type: 'circle', source: 'verts', // empty source when not editing = no handles drawn
@@ -268,13 +264,23 @@ function frameRoi(z, duration) {
   const label = km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
   const color = km <= 1 ? '#ff9800' : '#00e5ff'; // turn orange once you're within 1 km
   map.setPaintProperty('roibox-line', 'line-color', color);
-  map.setPaintProperty('roibox-dist', 'text-color', color);
   const mid = [(a[0] + userLoc[0]) / 2, (a[1] + userLoc[1]) / 2];
   map.getSource('roibox')?.setData({ type: 'FeatureCollection', features: [
     { type: 'Feature', geometry: { type: 'LineString', coordinates: [a, userLoc] } },
-    { type: 'Feature', properties: { label }, geometry: { type: 'Point', coordinates: mid } },
   ] });
+  showDist(mid, label, color);
 }
+// distance chip as a DOM marker: glides with your position (no symbol flicker) and
+// carries a solid background so the number stays legible over any map imagery.
+let distMarker;
+function showDist(lngLat, text, color) {
+  if (!distMarker) distMarker = new maplibregl.Marker({ element: Object.assign(document.createElement('div'), { className: 'dist-chip' }) });
+  const el = distMarker.getElement();
+  el.textContent = text;
+  el.style.color = color; // drives text + border via currentColor
+  distMarker.setLngLat(lngLat).addTo(map);
+}
+function hideDist() { distMarker?.remove(); }
 // ROI on but no polygon picked yet: fit your live position + every loaded zone, no target line.
 function frameRoiAll(duration) {
   if (!userLoc) return;
@@ -283,6 +289,7 @@ function frameRoiAll(duration) {
   b.extend(userLoc);
   map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
   map.getSource('roibox')?.setData(EMPTY_FC);
+  hideDist();
 }
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 // flash "select a polygon" in the middle of the map for a few seconds, then fade out
