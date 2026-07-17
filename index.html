@@ -133,13 +133,13 @@
     #dragbar { display: none; }                       /* desktop: no split handle */
     @media (max-width: 640px) {
       body { flex-direction: column-reverse; }      /* map on top, panel below */
-      #map { flex: none; height: var(--maph, 56dvh); min-height: 0; }
-      #dragbar {                                      /* drag to resize map vs panel */
-        display: flex; align-items: center; justify-content: center; flex: none; height: 18px;
+      #map { flex: none; height: var(--maph, 56dvh); min-height: 0;
+             transition: height .45s cubic-bezier(.22,.61,.36,1); } /* driving on/off slides the menu */
+      #dragbar {                                      /* fixed bar; its wheel toggles driving mode */
+        display: flex; align-items: center; justify-content: center; flex: none; height: 56px;
         background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-        touch-action: none; cursor: row-resize;
+        touch-action: none; cursor: pointer;
       }
-      #dragbar::before { content: ''; width: 44px; height: 4px; border-radius: 2px; background: var(--muted); }
       #side {                                         /* panel = horizontal pager */
         width: 100%; flex: 1; height: auto; min-height: 0; padding: 0; gap: 0;
         flex-direction: row; overflow-x: auto; overflow-y: hidden;
@@ -156,8 +156,9 @@
     }
     /* ---- driving mode: transparent overlay, corner wheel, drum picker (mobile) ---- */
     #driveoverlay { display: none; }
-    body.driving #side, body.driving #dragbar { display: none; }
-    body.driving #map { flex: 1; height: auto; }
+    /* entering driving: the map grows to full height, sliding menu + bar off the bottom
+       (they stay in flow below the fold so the exit transition slides them back up) */
+    body.driving #map { height: 100dvh; }
     body.driving #driveoverlay { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
       padding: 12px 16px 14px; background: linear-gradient(180deg, transparent, rgba(4,7,10,.55) 40%); }
     #drivewheel { position: absolute; left: 16px; bottom: 16px; z-index: 8; width: 46px; height: 46px; padding: 0;
@@ -188,13 +189,13 @@
       border-radius: 12px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.5); color: var(--text);
       font-weight: 600; font-size: 14px; text-decoration: none; }
     #drivenav a svg { width: 18px; height: 18px; }
-    /* dragbar becomes the driving-mode button: a steering wheel instead of the resize pill */
+    /* dragbar houses the driving-mode button: same circled wheel as the driving overlay */
     #dragbar .wheelico { display: none; }
     @media (max-width: 640px) {
-      #dragbar { height: 32px; }
-      #dragbar::before { display: none; }
-      #dragbar .wheelico { display: block; color: var(--accent); line-height: 0; }
-      #dragbar .wheelico svg { width: 24px; height: 24px; stroke: var(--accent); }
+      #dragbar .wheelico { display: flex; align-items: center; justify-content: center;
+        width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent);
+        background: rgba(6,13,17,.8); box-shadow: var(--glow); }
+      #dragbar .wheelico svg { width: 27px; height: 27px; stroke: var(--accent); }
     }
   </style>
 </head>

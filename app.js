@@ -78,26 +78,20 @@ function applyPoi() {
 }
 document.getElementById('roi').onchange = applyPoi;
 
-// ---- mobile: drag the split bar to resize map vs. panel ----
-// map sits at the top (column-reverse), so the pointer's Y ≈ desired map height.
+// ---- mobile: fixed map/panel split — the bar's wheel is the driving-mode button ----
 const dragbar = document.getElementById('dragbar');
-dragbar?.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  dragbar.setPointerCapture(e.pointerId);
-  let moved = false; const startY = e.clientY;
-  const move = (ev) => {
-    if (Math.abs(ev.clientY - startY) > 4) moved = true; // a real drag, not a tap
-    const h = Math.min(Math.max(ev.clientY, window.innerHeight * 0.2), window.innerHeight * 0.85);
-    document.documentElement.style.setProperty('--maph', h + 'px');
-    map.resize();
-  };
-  const up = () => {
-    dragbar.removeEventListener('pointermove', move); dragbar.removeEventListener('pointerup', up);
-    if (!moved) setDriving(true); // tap (not drag) enters driving mode
-  };
-  dragbar.addEventListener('pointermove', move);
-  dragbar.addEventListener('pointerup', up);
-});
+dragbar?.addEventListener('click', () => setDriving(true));
+// panel sized so everything through the Save/Load-missions row is visible; map takes the rest
+function sizeSplit() {
+  if (!window.matchMedia('(max-width: 640px)').matches) return;
+  const row = document.getElementById('save').closest('.row');
+  const sec = row.closest('.sec');
+  const h = Math.round(row.getBoundingClientRect().bottom - sec.getBoundingClientRect().top) + 16;
+  document.documentElement.style.setProperty('--maph', `calc(100dvh - ${h + dragbar.offsetHeight}px)`);
+  map.resize();
+}
+window.addEventListener('resize', sizeSplit);
+sizeSplit();
 // ponytail: terrain is always on (set in the style below) — no toggle control to turn it off.
 map.on('load', () => {
   map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -835,9 +829,22 @@ function driveFrame(force) {
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
   map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration: 500, essential: true });
 }
+let driveAnim;
 function setDriving(on) {
   document.body.classList.toggle('driving', on);
-  map.resize(); // container width changes when the side panel hides/shows
+  // resize + frame only once the map-height transition really ends (transitionend,
+  // with a timer fallback) so the camera math uses the final canvas. Exit → re-frame
+  // the last driving zone in the smaller map area above the menu.
+  const mapEl = document.getElementById('map');
+  const done = () => {
+    clearTimeout(driveAnim); mapEl.removeEventListener('transitionend', done);
+    map.resize();
+    if (on) { if (zones[driveCur]) driveFrame(true); }
+    else if (zones[driveCur]) flyToZone(zones[driveCur]);
+  };
+  clearTimeout(driveAnim);
+  mapEl.addEventListener('transitionend', done);
+  driveAnim = setTimeout(done, 900); // fallback if the transition never fires
   if (!on) return;
   buildDrum();
   if (!$('roi').checked) $('roi').checked = true; // driving defaults to POI on (zone + live location)
@@ -847,7 +854,6 @@ function setDriving(on) {
     setDriveCur(start);
     $('drivepicker').scrollTop = start * 44; // 44px per row → centre the current zone
     requestAnimationFrame(drumStyle);
-    flyToZone(zones[start]);
   }
 }
 $('drivewheel').onclick = () => setDriving(false);
