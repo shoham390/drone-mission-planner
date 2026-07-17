@@ -135,10 +135,10 @@
       body { flex-direction: column-reverse; }      /* map on top, panel below */
       #map { flex: none; height: var(--maph, 56dvh); min-height: 0;
              transition: height .45s cubic-bezier(.22,.61,.36,1); } /* driving on/off slides the menu */
-      #dragbar {                                      /* fixed bar; its wheel toggles driving mode */
-        display: flex; align-items: center; justify-content: center; flex: none; height: 56px;
+      #dragbar {                                      /* thin divider; the wheel floats on it */
+        display: block; flex: none; height: 10px; position: relative; z-index: 20;
         background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-        touch-action: none; cursor: pointer; transition: opacity .3s;
+        cursor: pointer; transition: opacity .3s;
       }
       #side {                                         /* panel = horizontal pager */
         width: 100%; flex: 1; height: auto; min-height: 0; padding: 0; gap: 0;
@@ -194,10 +194,11 @@
     /* dragbar houses the driving-mode button: same circled wheel as the driving overlay */
     #dragbar .wheelico { display: none; }
     @media (max-width: 640px) {
-      #dragbar .wheelico { display: flex; align-items: center; justify-content: center;
-        width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent);
-        background: rgba(6,13,17,.8); box-shadow: var(--glow); }
-      #dragbar .wheelico svg { width: 27px; height: 27px; stroke: var(--accent); }
+      #dragbar .wheelico { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%);
+        display: flex; align-items: center; justify-content: center;
+        width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--accent);
+        background: rgba(6,13,17,.92); box-shadow: var(--glow); }
+      #dragbar .wheelico svg { width: 26px; height: 26px; stroke: var(--accent); }
     }
   </style>
 </head>
