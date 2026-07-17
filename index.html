@@ -21,7 +21,7 @@
             backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
             border-left: 1px solid var(--line); box-shadow: -1px 0 0 rgba(255,255,255,.06) inset;
             display: flex; flex-direction: column; gap: 14px; }
-    #map { flex: 1; }
+    #map { flex: 1; position: relative; }
     h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px;
          color: var(--accent); text-shadow: var(--glow); }
     h1 .drone { vertical-align: -4px; margin-right: 6px; }
@@ -149,6 +149,48 @@
       #side h1 { font-size: 16px; }
       #side h1 small { display: none; }
     }
+    /* ---- driving mode: transparent overlay, corner wheel, drum picker (mobile) ---- */
+    #driveoverlay { display: none; }
+    body.driving #side, body.driving #dragbar { display: none; }
+    body.driving #map { flex: 1; height: auto; }
+    body.driving #driveoverlay { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+      padding: 12px 16px 14px; background: linear-gradient(180deg, transparent, rgba(4,7,10,.55) 40%); }
+    #drivewheel { position: absolute; left: 16px; bottom: 16px; z-index: 8; width: 46px; height: 46px; padding: 0;
+      border-radius: 50%; border: 1px solid var(--accent); background: rgba(6,13,17,.82); display: flex;
+      align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--glow); }
+    #drivewheel svg { width: 27px; height: 27px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
+    #poirow { display: flex; justify-content: flex-start; margin-bottom: 2px; }
+    .poi-pill { padding: 8px 20px; border-radius: 999px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.55);
+      color: var(--muted); font: inherit; font-weight: 700; letter-spacing: 1px; font-size: 13px; cursor: pointer; }
+    .poi-pill.on { background: var(--blue); border-color: var(--accent); color: #04070a; box-shadow: var(--glow); }
+    #drivepickwrap { position: relative; height: 132px; }
+    #drivepickwrap::before { content: ''; position: absolute; left: 0; right: 0; height: 44px; top: 50%;
+      transform: translateY(-50%); border-top: 1px solid var(--glass-hi); border-bottom: 1px solid var(--glass-hi);
+      background: rgba(0,229,255,.06); pointer-events: none; }
+    #drivepicker { height: 132px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none;
+      -webkit-mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
+      mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent); }
+    #drivepicker::-webkit-scrollbar { display: none; }
+    #drivepicker .spacer { height: 44px; }
+    #drivepicker .opt { height: 44px; scroll-snap-align: center; display: flex; align-items: center; gap: 12px;
+      justify-content: flex-end; padding: 0 6px; will-change: transform; }
+    #drivepicker .opt .on { font-size: 18px; font-weight: 600; white-space: nowrap; }
+    #drivepicker .opt .oi { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--accent);
+      color: #04070a; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    #drivepicker .opt.cur .on { color: var(--accent); text-shadow: var(--glow); }
+    #drivenav { display: flex; gap: 10px; margin-top: 6px; padding-left: 60px; }
+    #drivenav a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px;
+      border-radius: 12px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.5); color: var(--text);
+      font-weight: 600; font-size: 14px; text-decoration: none; }
+    #drivenav a svg { width: 18px; height: 18px; }
+    /* dragbar becomes the driving-mode button: a steering wheel instead of the resize pill */
+    #dragbar .wheelico { display: none; }
+    @media (max-width: 640px) {
+      #dragbar { height: 32px; }
+      #dragbar::before { display: none; }
+      #dragbar .wheelico { display: block; color: var(--accent); line-height: 0; }
+      #dragbar .wheelico svg { width: 24px; height: 24px; stroke: var(--accent); }
+    }
   </style>
 </head>
 <body>
@@ -188,7 +230,7 @@
         <input type="checkbox" id="ptmode" class="tbtn-cb" hidden />
         <label class="tbtn" for="ptmode" title="Pin at corner instead of center">Corner pin</label>
         <input type="checkbox" id="roi" class="tbtn-cb" hidden />
-        <label class="tbtn" for="roi" title="Frame live location with the target">ROI</label>
+        <label class="tbtn" for="roi" title="POI — frame live location with the target">POI</label>
       </div>
       <div id="editctrls" style="display:none">
         <div id="editnote" class="field-label" style="margin-top:6px; display:none">Select a polygon</div>
@@ -208,8 +250,19 @@
       <div id="list"></div>
     </div>
   </div>
-  <div id="dragbar"></div>
-  <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div></div>
+  <div id="dragbar"><span class="wheelico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/><path d="M12 14.4V21 M4.3 8.2l5.5 3.1 M19.7 8.2l-5.5 3.1"/></svg></span></div>
+  <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div>
+    <div id="driveoverlay">
+      <button id="drivewheel" aria-label="Exit driving mode">
+        <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/><path d="M12 14.4V21 M4.3 8.2l5.5 3.1 M19.7 8.2l-5.5 3.1"/></svg>
+      </button>
+      <div id="poirow"><button id="poipill" class="poi-pill" aria-pressed="false">POI</button></div>
+      <div id="drivepickwrap"><div id="drivepicker"></div></div>
+      <div id="drivenav">
+        <a id="drivemaps" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>Maps</a>
+        <a id="drivewaze" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>Waze</a>
+      </div>
+    </div></div>
 
   <script src="https://accounts.google.com/gsi/client" async></script>
   <!-- cache-bust: GitHub Pages caches app.js/geo.js for 10 min; always load the

@@ -66,11 +66,13 @@ geolocate.on('geolocate', (e) => {
   if (!$('roi').checked) return;
   frameRoi(500); // tracks the ping-or-polygon target; falls back to fit-all when neither
 });
-document.getElementById('roi').onchange = (e) => {
-  if (e.target.checked) { geolocate.trigger(); if (userLoc) frameRoi(900); }
-  else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); } // drop the frame when ROI is off
-  roiNote();
-};
+// POI (was ROI): the top-row toggle and the driving-mode pill share this one path.
+function applyPoi() {
+  if ($('roi').checked) { geolocate.trigger(); if (userLoc) frameRoi(900); }
+  else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); } // drop the frame when POI is off
+  roiNote(); syncPoiPill();
+}
+document.getElementById('roi').onchange = applyPoi;
 
 // ---- mobile: drag the split bar to resize map vs. panel ----
 // map sits at the top (column-reverse), so the pointer's Y ≈ desired map height.
@@ -78,12 +80,17 @@ const dragbar = document.getElementById('dragbar');
 dragbar?.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   dragbar.setPointerCapture(e.pointerId);
+  let moved = false; const startY = e.clientY;
   const move = (ev) => {
+    if (Math.abs(ev.clientY - startY) > 4) moved = true; // a real drag, not a tap
     const h = Math.min(Math.max(ev.clientY, window.innerHeight * 0.2), window.innerHeight * 0.85);
     document.documentElement.style.setProperty('--maph', h + 'px');
     map.resize();
   };
-  const up = () => { dragbar.removeEventListener('pointermove', move); dragbar.removeEventListener('pointerup', up); };
+  const up = () => {
+    dragbar.removeEventListener('pointermove', move); dragbar.removeEventListener('pointerup', up);
+    if (!moved) setDriving(true); // tap (not drag) enters driving mode
+  };
   dragbar.addEventListener('pointermove', move);
   dragbar.addEventListener('pointerup', up);
 });
@@ -764,3 +771,61 @@ async function loadMission(id, name) {
   zones = []; numberMarkers = [];
   addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) }); // plans the route itself
 }
+
+// ---- driving mode (mobile): frameless overlay, corner wheel, iOS-style drum picker ----
+// Reuses the POI framing path: picking a zone in the drum sets it as the ROI target
+// and flyToZone frames it (+ live location when POI is on, polygon only when off).
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let driveCur = 0, driveSettle;
+function syncPoiPill() { $('poipill')?.classList.toggle('on', $('roi').checked); }
+function buildDrum() {
+  const p = $('drivepicker');
+  p.innerHTML = '<div class="spacer"></div>' + zones.map((z, i) =>
+    `<div class="opt" data-i="${i}"><span class="on">${esc(z.name)}</span><span class="oi">${i + 1}</span></div>`).join('') +
+    '<div class="spacer"></div>';
+  p.onscroll = driveScroll;
+}
+// drum look: fade + tilt each row by its distance from centre; return the centred index
+function drumStyle() {
+  const p = $('drivepicker'), opts = [...p.querySelectorAll('.opt')];
+  const mid = p.getBoundingClientRect().top + p.clientHeight / 2;
+  let best = 0, bd = Infinity;
+  for (const o of opts) {
+    const b = o.getBoundingClientRect(), d = (b.top + b.height / 2) - mid, ad = Math.abs(d);
+    o.style.opacity = Math.max(0.25, 1 - ad / 110);
+    o.style.transform = `perspective(300px) rotateX(${Math.max(-58, Math.min(58, d / 1.9))}deg) scale(${Math.max(0.8, 1 - ad / 460)})`;
+    if (ad < bd) { bd = ad; best = +o.dataset.i; }
+  }
+  return best;
+}
+function setDriveCur(i) {
+  driveCur = i;
+  $('drivepicker').querySelectorAll('.opt').forEach((o) => o.classList.toggle('cur', +o.dataset.i === i));
+  const z = zones[i]; if (!z) return;
+  roiZone = z; // so a POI toggle frames the right zone
+  $('drivemaps').href = mapsNavUrl(z.lat, z.lng);
+  $('drivewaze').href = wazeNavUrl(z.lat, z.lng);
+}
+function driveScroll() {
+  const i = drumStyle();
+  if (i !== driveCur) setDriveCur(i);
+  clearTimeout(driveSettle);
+  driveSettle = setTimeout(() => { if (zones[driveCur]) flyToZone(zones[driveCur]); }, 120); // reframe once it settles
+}
+function setDriving(on) {
+  document.body.classList.toggle('driving', on);
+  map.resize(); // container width changes when the side panel hides/shows
+  if (!on) return;
+  buildDrum();
+  if (!$('roi').checked) $('roi').checked = true; // driving defaults to POI on (zone + live location)
+  applyPoi();
+  if (zones.length) {
+    const start = Math.max(0, zones.indexOf(roiZone));
+    setDriveCur(start);
+    $('drivepicker').scrollTop = start * 44; // 44px per row → centre the current zone
+    requestAnimationFrame(drumStyle);
+    flyToZone(zones[start]);
+  }
+}
+$('drivewheel').onclick = () => setDriving(false);
+$('poipill').onclick = () => { $('roi').checked = !$('roi').checked; applyPoi(); };
