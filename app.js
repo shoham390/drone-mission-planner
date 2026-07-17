@@ -16,6 +16,7 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file'; // per-file: no app 
 let accessToken = null;
 let zones = []; // { id, name, lat, lng, center, corner, feature }
 let numberMarkers = [];
+let focusedId = null; // zone the camera is zoomed to; tapping it again fits back
 let pointMode = 'center'; // nav-point per zone: 'center' (centroid) or 'corner' (first vertex)
 
 // ---- map: MapLibre GL (WebGL) — Esri imagery + free DEM for 3D terrain + hillshade ----
@@ -590,7 +591,7 @@ $('vreset').onclick = resetPolys;
 $('clear').onclick = () => {
   if (!zones.length || !confirm('Clear all zones from the map?')) return;
   numberMarkers.forEach((m) => m.remove());
-  zones = []; numberMarkers = [];
+  zones = []; numberMarkers = []; focusedId = null;
   drawZones();
   $('routelink').style.display = 'none';
   $('missions').selectedIndex = 0; // so re-picking the just-cleared mission fires change
@@ -633,9 +634,10 @@ function render() {
       if (z.done) localStorage.setItem(markKey(z), '1'); else localStorage.removeItem(markKey(z));
       div.classList.toggle('done', z.done);
     };
-    div.addEventListener('click', (e) => { // tap anywhere on the box to zoom to it
+    div.addEventListener('click', (e) => { // tap to zoom; tap the same one again to fit back
       if (e.target.closest('a') || e.target.type === 'checkbox') return; // ...except links & the mark
-      flyToZone(z);
+      if (focusedId === z.id) { focusedId = null; fitZones(); }          // second press → back to fit-all
+      else { focusedId = z.id; flyToZone(z); }
       if (editMode) selectZone(zones.indexOf(z)); // ...and pick it for editing
     });
     $('list').appendChild(div);
