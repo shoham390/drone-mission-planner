@@ -63,14 +63,18 @@ map.addControl(geolocate, 'top-left');
 let userLoc = null, roiZone = null; // roiZone = target framed by ROI, re-fit as you move
 geolocate.on('geolocate', (e) => {
   userLoc = [e.coords.longitude, e.coords.latitude];
+  if (document.body.classList.contains('driving')) return driveFrame(false); // driving has its own follow rules
   if (!$('roi').checked) return;
   frameRoi(500); // tracks the ping-or-polygon target; falls back to fit-all when neither
 });
 // POI (was ROI): the top-row toggle and the driving-mode pill share this one path.
 function applyPoi() {
-  if ($('roi').checked) { geolocate.trigger(); if (userLoc) frameRoi(900); }
+  syncPoiPill();
+  if ($('roi').checked) geolocate.trigger(); // make sure we have a live fix
+  if (document.body.classList.contains('driving')) { driveFrame(true); roiNote(); return; }
+  if ($('roi').checked) { if (userLoc) frameRoi(900); }
   else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); } // drop the frame when POI is off
-  roiNote(); syncPoiPill();
+  roiNote();
 }
 document.getElementById('roi').onchange = applyPoi;
 
@@ -268,6 +272,7 @@ function roiTarget() {
 // Draw the dashed line target→you + distance chip, WITHOUT moving the camera
 // (so it can update live while a ping is dragged). Clears both if there's no target.
 function drawRoiLine() {
+  if (!map.getLayer('roibox-line')) return; // a GPS fix can arrive before the map's load handler adds the layer
   const a = roiTarget();
   if (!userLoc || !a) { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); return; }
   const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
@@ -367,10 +372,10 @@ function showCoord() {
   const t = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   const box = $('coordbox');
   box.innerHTML =
-    `<span class="coordtxt">${t}</span>` +
     `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(lat, lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
     `<a class="navico" title="Open in Waze" href="${wazeNavUrl(lat, lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
-    `<button class="copybtn" data-c="${t}">Copy</button>`;
+    `<button class="copybtn" data-c="${t}">Copy</button>` +
+    `<span class="coordtxt">${t}</span>`; // icons/actions left, coordinates right
   box.style.display = 'flex';
 }
 function dropPin(lngLat) {
@@ -806,7 +811,29 @@ function driveScroll() {
   const i = drumStyle();
   if (i !== driveCur) setDriveCur(i);
   clearTimeout(driveSettle);
-  driveSettle = setTimeout(() => { if (zones[driveCur]) flyToZone(zones[driveCur]); }, 120); // reframe once it settles
+  driveSettle = setTimeout(() => { if (zones[driveCur]) driveFrame(true); }, 120); // reframe once it settles
+}
+// driving-mode framing. POI on: keep the polygon + you in view, but once you're within
+// 1.5 km stop tightening — preserve the frame. POI off: just follow (zoom to) the live
+// location. `force` overrides the 1.5 km freeze for explicit actions (pick a zone, toggle POI).
+function driveFrame(force) {
+  if (!document.body.classList.contains('driving')) return;
+  if (!$('roi').checked) { // POI off → follow the live location
+    map.getSource('roibox')?.setData(EMPTY_FC); hideDist();
+    if (userLoc) map.easeTo({ center: userLoc, zoom: Math.max(map.getZoom(), 16),
+      pitch: 0, bearing: 0, duration: 500, essential: true });
+    return;
+  }
+  const z = roiZone; if (!z) return;
+  if (!userLoc) { flyToZone(z); return; } // no fix yet → just frame the polygon
+  drawRoiLine();
+  const a = roiTarget();
+  const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
+  if (!force && km <= 1.5) return; // inside 1.5 km → preserve the frame, no more zoom-in
+  const b = new maplibregl.LngLatBounds();
+  b.extend(userLoc); b.extend(a);
+  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
+  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration: 500, essential: true });
 }
 function setDriving(on) {
   document.body.classList.toggle('driving', on);
