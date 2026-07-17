@@ -95,6 +95,11 @@
       border-radius: 8px; box-shadow: var(--glow); padding: 7px 10px;
       display: flex; align-items: center; gap: 8px; }
     .maplibregl-popup-tip { display: none; }
+    /* coordinate box: pinned to the top of the map instead of hovering over the pin */
+    #coordbox { display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      z-index: 6; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; box-shadow: var(--glow); padding: 7px 10px; align-items: center; gap: 8px;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); max-width: calc(100% - 20px); }
     .coordtxt { color: var(--accent); font-weight: 600; white-space: nowrap; }
     .copybtn { padding: 3px 9px; font-size: 12px; border: 1px solid var(--blue); background: var(--blue);
       color: #071528; border-radius: 6px; cursor: pointer; font-weight: 700; }
@@ -252,6 +257,7 @@
   </div>
   <div id="dragbar"><span class="wheelico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/><path d="M12 14.4V21 M4.3 8.2l5.5 3.1 M19.7 8.2l-5.5 3.1"/></svg></span></div>
   <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div>
+    <div id="coordbox"></div>
     <div id="driveoverlay">
       <button id="drivewheel" aria-label="Exit driving mode">
         <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/><path d="M12 14.4V21 M4.3 8.2l5.5 3.1 M19.7 8.2l-5.5 3.1"/></svg>

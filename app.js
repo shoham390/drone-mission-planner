@@ -365,22 +365,18 @@ let coordPin;
 function showCoord() {
   const { lng, lat } = coordPin.getLngLat();
   const t = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  coordPin.getPopup().setHTML(
+  const box = $('coordbox');
+  box.innerHTML =
     `<span class="coordtxt">${t}</span>` +
     `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(lat, lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
     `<a class="navico" title="Open in Waze" href="${wazeNavUrl(lat, lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
-    `<button class="copybtn" data-c="${t}">Copy</button>`
-  );
-  if (!coordPin.getPopup().isOpen()) coordPin.togglePopup();
+    `<button class="copybtn" data-c="${t}">Copy</button>`;
+  box.style.display = 'flex';
 }
 function dropPin(lngLat) {
   if (!coordPin) {
-    coordPin = new maplibregl.Marker({ color: '#22e0e0', draggable: true })
-      // closeOnClick: false — otherwise the mouse "click" that fires right after the
-      // long-press's mouseup reads as "clicked outside the popup" and closes it
-      // instantly; our own map click handler already owns hiding the pin.
-      .setPopup(new maplibregl.Popup({ closeButton: false, offset: 26, closeOnClick: false }));
-    // while dragging the ping, keep the ROI line glued to it (no camera move)
+    coordPin = new maplibregl.Marker({ color: '#22e0e0', draggable: true });
+    // while dragging the ping, keep the top coord box + ROI line in step (no camera move)
     coordPin.on('drag', () => { showCoord(); if ($('roi').checked) drawRoiLine(); });
   }
   coordPin.setLngLat(lngLat).addTo(map);
@@ -412,7 +408,7 @@ map.on('touchmove', movePress);
 for (const ev of ['mouseup', 'touchend', 'touchcancel', 'dragstart', 'zoomstart', 'rotatestart', 'pitchstart']) map.on(ev, cancelPress);
 map.on('click', () => {
   if (justDropped) { justDropped = false; return; } // the long-press that just dropped it
-  if (coordPin) { coordPin.remove(); coordPin = null; // tap clears the pin
+  if (coordPin) { coordPin.remove(); coordPin = null; $('coordbox').style.display = 'none'; // tap clears the pin + box
     if ($('roi').checked && userLoc) frameRoi(600); } // ROI line reverts to the selected polygon
 });
 document.addEventListener('click', (e) => { // Copy button in the coordinate popup
