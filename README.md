@@ -10,7 +10,7 @@ per-zone Google Maps + Waze links. Google login + saves files/missions to your D
 3. **OAuth consent screen:** External, add yourself as a test user.
 4. **Credentials → Create credentials → OAuth client ID → Web application.**
    Add **Authorized JavaScript origins**:
-   - `http://localhost:8000` (local test)
+   - `http://localhost:8080` (local test)
    - `https://<your-user>.github.io` (after deploy)
 5. Copy the client ID into `CLIENT_ID` at the top of `app.js`.
 
@@ -20,7 +20,7 @@ require app verification.
 ## Run locally
 
 ```
-python3 -m http.server 8000   # then open http://localhost:8000
+python3 -m http.server 8080   # then open http://localhost:8080
 ```
 
 ## Deploy (GitHub Pages)
