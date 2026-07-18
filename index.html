@@ -49,10 +49,6 @@
        align-self:stretch because a select renders 1px shorter than a button. */
     #missions { flex: 1; min-width: 0; align-self: stretch; }
     #save, #delmission { flex: none; }
-    /* JS sets display:inline on these, so size the glyph rather than relying on flex */
-    #delmission svg, #routelink svg { width: 16px; height: 16px; vertical-align: -3px;
-      fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-    #routelink svg { margin-right: 5px; }
     .upload-btn { width: 100%; text-align: center; padding: 14px; border: 1px dashed rgba(150,190,255,.35);
                   border-radius: 12px; cursor: pointer; color: var(--muted); background: rgba(255,255,255,.03); }
     .upload-btn:hover { background: var(--glass); color: var(--text); border-color: var(--accent); }
@@ -224,7 +220,7 @@
 <body>
   <div id="gate">
     <div class="gate-card">
-      <svg class="drone" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 20.5 8v8L12 20.8 3.5 16V8Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+      <svg class="drone" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M6.6 6.6 9.5 9.5M17.4 6.6 14.5 9.5M6.6 17.4 9.5 14.5M17.4 17.4 14.5 14.5"/><rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.2"/></svg>
       <h1>Drone Mission Planner</h1>
       <button id="signin">Sign in with Google</button>
     </div>
@@ -242,11 +238,11 @@
         </div>
         <div class="row" style="flex-wrap:nowrap">
           <select id="missions" style="display:none"></select>
-          <button id="delmission" title="Delete selected mission" aria-label="Delete selected mission" style="display:none"><svg viewBox="0 0 24 24"><path d="M5 7.5h14M9.5 7.5V5.2h5v2.3M7 7.5l.9 11.3h8.2L17 7.5"/><path d="M10.3 11v4.6M13.7 11v4.6"/></svg></button>
+          <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
           <button id="save" class="primary" disabled>Save</button>
         </div>
       </div>
-      <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="18.5" r="2.2"/><path d="M7.7 18.5H14a4 4 0 0 0 0-8H9.5" stroke-dasharray="2.3 2.3"/><path d="M18.5 3.5 15 7l3.5 3.5"/><path d="M15 7h3.5a2 2 0 0 1 2 2v2"/></svg>Full route in Google Maps</a>
+      <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
       <div id="list"></div>
     </div>
   </div>
@@ -257,26 +253,26 @@
     <div id="editctrls" style="display:none">
       <div id="editnote" style="display:none">Select a polygon</div>
       <div id="edittools" style="display:none">
-        <button id="vadd" class="mapbtn" title="Add vertex" aria-label="Add vertex"><svg viewBox="0 0 24 24"><path d="M4.5 17.5 11 6.5"/><path d="M11 6.5 19.5 11.5" stroke-dasharray="2.2 2.2"/><circle cx="11" cy="6.5" r="2.4"/></svg></button>
-        <button id="vdel" class="mapbtn" title="Remove vertex" aria-label="Remove vertex"><svg viewBox="0 0 24 24"><path d="M4.5 17.5 19.5 11.5"/><circle cx="11" cy="6.5" r="2.4" stroke-dasharray="2 2"/></svg></button>
-        <button id="vreset" class="mapbtn" title="Reset polygon" aria-label="Reset polygon"><svg viewBox="0 0 24 24"><path d="M12 3.5 20.5 8.2v7.6L12 20.5 3.5 15.8V8.2Z" stroke-dasharray="2.4 2.2"/><path d="M9 12h6M12 9l3 3-3 3"/></svg></button>
+        <button id="vadd" class="mapbtn" title="Add vertex" aria-label="Add vertex"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button id="vdel" class="mapbtn" title="Remove vertex" aria-label="Remove vertex"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button id="vreset" class="mapbtn" title="Reset polygon" aria-label="Reset polygon"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
         <input type="checkbox" id="origtoggle" class="mb-cb" checked hidden />
-        <label class="mapbtn" for="origtoggle" title="Show original outline" aria-label="Show original outline"><svg viewBox="0 0 24 24"><path d="M12 2.8 21 7.6v8.8L12 21.2 3 16.4V7.6Z" stroke-dasharray="2.4 2.2"/><path d="M12 7.2l5 2.7v4.2l-5 2.7-5-2.7V9.9Z"/></svg></label>
+        <label class="mapbtn" for="origtoggle" title="Show original outline" aria-label="Show original outline"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></label>
       </div>
     </div>
     <!-- map tool bar: Fit / POI / Edit / Clear, with the driving wheel at the left end -->
     <div id="mapbar">
-      <button id="drivestart" class="mapbtn wheelbtn" title="Driving mode" aria-label="Enter driving mode"><svg viewBox="0 0 24 24"><path d="M6 21c0-6 12-12 12-18"/><circle cx="18" cy="3.6" r="2.2"/><path d="M3.4 20.2 6 21l.8-2.6"/></svg></button>
-      <button id="fit" class="mapbtn" title="Fit all zones" aria-label="Fit all zones"><svg viewBox="0 0 24 24"><path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5"/><path d="M9.5 10.5 14.5 12l-1.5 4.5-3.5-6Z"/></svg></button>
+      <button id="drivestart" class="mapbtn wheelbtn" title="Driving mode" aria-label="Enter driving mode"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg></button>
+      <button id="fit" class="mapbtn" title="Fit all zones" aria-label="Fit all zones"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <input type="checkbox" id="roi" class="mb-cb" hidden />
-      <label class="mapbtn" for="roi" title="POI — frame live location with the target" aria-label="POI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.4"/><circle cx="12" cy="12" r="7.2" stroke-dasharray="2 2.6"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5"/></svg></label>
+      <label class="mapbtn" for="roi" title="POI — frame live location with the target" aria-label="POI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></label>
       <input type="checkbox" id="editverts" class="mb-cb" hidden />
-      <label class="mapbtn" for="editverts" title="Edit polygon vertices" aria-label="Edit polygon vertices"><svg viewBox="0 0 24 24"><path d="M5.5 6.5 18.5 10.5 13 18.5Z"/><circle cx="5.5" cy="6.5" r="2.3"/><circle cx="18.5" cy="10.5" r="2.3"/><circle cx="13" cy="18.5" r="2.3"/></svg></label>
-      <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M11 3.8 18.5 8v5" stroke-dasharray="2.4 2.2"/><path d="M11 3.8 3.5 8v8.4L11 20.6l3.2-1.8" stroke-dasharray="2.4 2.2"/><path d="M16 16.5 21.5 22M21.5 16.5 16 22"/></svg></button>
+      <label class="mapbtn" for="editverts" title="Edit polygon vertices" aria-label="Edit polygon vertices"><svg viewBox="0 0 24 24"><path d="M5 7l7-3 7 3-2 10-5 3-5-3z"/><circle cx="5" cy="7" r="1.6"/><circle cx="19" cy="7" r="1.6"/><circle cx="12" cy="20" r="1.6"/></svg></label>
+      <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M20 4 10.6 12.4"/><path d="M9.4 11.4 12.6 14.6 11 18.7 5.3 13Z"/><path d="M11 13 8.2 15.8"/></svg></button>
     </div>
     <div id="driveoverlay">
       <button id="drivewheel" aria-label="Exit driving mode">
-        <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M6 21c0-6 12-12 12-18"/><circle cx="18" cy="3.6" r="2.2"/><path d="M3.4 20.2 6 21l.8-2.6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg>
       </button>
       <div id="poirow"><button id="poipill" class="poi-pill" aria-pressed="false">POI</button></div>
       <div id="drivepickwrap"><div id="drivepicker"></div></div>
