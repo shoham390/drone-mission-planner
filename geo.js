@@ -62,12 +62,17 @@ export const mapsNavUrl = (lat, lng) =>
 export const wazeNavUrl = (lat, lng) =>
   `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
 
+// Escape for HTML/XML text + attributes. Zone names come from an uploaded KML —
+// untrusted input — so every interpolation of a name goes through this.
+export const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 // A one-polygon KML for a zone — Google Earth Web has no URL param to load geometry,
 // so we hand it a file. ring: [[lng,lat], ...] (GeoJSON order); KML wants "lng,lat,0".
 export function zoneKml(name, ring) {
   const coords = ring.map(([x, y]) => `${x},${y},0`).join(' ');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>${name}</name>` +
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>${esc(name)}</name>` +
     `<Style><LineStyle><color>ffe0e022</color><width>2</width></LineStyle>` +
     `<PolyStyle><color>4de0e022</color></PolyStyle></Style>` +
     `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}` +

@@ -5,7 +5,7 @@ import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
 // import geo.js with app.js's own ?v= cache-buster so it never serves stale
 const {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine,
+  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine, esc,
 } = await import('./geo.js' + new URL(import.meta.url).search);
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -627,10 +627,10 @@ function render() {
     const kml = 'data:application/vnd.google-earth.kml+xml;charset=utf-8,' +
       encodeURIComponent(zoneKml(z.name, z.feature.geometry.coordinates[0]));
     div.innerHTML =
-      `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${z.name}</b>` +
+      `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${esc(z.name)}</b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
-      `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${z.name}.kml">${EARTH_ICON}</a>`;
+      `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${esc(z.name)}.kml">${EARTH_ICON}</a>`;
     div.querySelector('.donebox').onchange = (e) => {
       z.done = e.target.checked;
       if (z.done) localStorage.setItem(markKey(z), '1'); else localStorage.removeItem(markKey(z));
@@ -678,9 +678,10 @@ async function getFolderId() {
 
 // Same-name file already saved by this app? Update it in place instead of creating
 // a duplicate — one file per name keeps the Drive folder's storage monitorable.
-// (drive.file scope: this search only ever sees files this app created.)
+// Scoped to the app's folder: without `in parents` this matched ANY file this app
+// ever created, so uploading a common filename silently overwrote an unrelated one.
 async function findByName(name) {
-  const q = `name='${name.replace(/'/g, "\\'")}' and trashed=false`;
+  const q = `name='${name.replace(/'/g, "\\'")}' and '${await getFolderId()}' in parents and trashed=false`;
   const r = await driveFetch(
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`);
   return (await r.json()).files?.[0]?.id;
@@ -770,7 +771,6 @@ async function loadMission(id, name) {
 // ---- driving mode (mobile): frameless overlay, corner wheel, iOS-style drum picker ----
 // Reuses the POI framing path: picking a zone in the drum sets it as the ROI target
 // and flyToZone frames it (+ live location when POI is on, polygon only when off).
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let driveCur = 0, driveSettle;
 function syncPoiPill() { $('poipill')?.classList.toggle('on', $('roi').checked); }
 function buildDrum() {

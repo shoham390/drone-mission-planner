@@ -69,3 +69,10 @@ assert.equal(featureName({ name: 'Polygon 2' }, 'סכנין'), 'סכנין');   
 assert.equal(featureName({ name: 'Untitled Polygon' }, 'עילבון'), 'עילבון');                        // untitled -> filename too
 assert.equal(featureName(null, 'Zone 9'), 'Zone 9');                                                // no props -> fallback
 console.log('featureName ok');
+
+// esc: zone names come from uploaded KML, so they must never reach HTML/XML raw
+import { esc } from './geo.js';
+assert.equal(esc('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+assert.equal(esc(`a"b'c&d`), 'a&quot;b&#39;c&amp;d');
+assert.ok(zoneKml('<b>&</b>', [[1, 2]]).includes('<name>&lt;b&gt;&amp;&lt;/b&gt;</name>')); // and inside the KML
+console.log('esc ok');
