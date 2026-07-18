@@ -218,6 +218,10 @@
   </div>
   <div id="side">
     <div class="sec">
+      <div class="row">
+        <input id="files" type="file" accept=".kml,.kmz" multiple hidden />
+        <label for="files" class="upload-btn">⬆ Upload KML / KMZ</label>
+      </div>
       <div class="field">
         <label class="field-label" for="mname">Mission</label>
         <div class="row">
@@ -230,10 +234,6 @@
         <div class="row">
           <button id="save" class="primary" disabled>Save mission</button>
         </div>
-      </div>
-      <div class="row">
-        <input id="files" type="file" accept=".kml,.kmz" multiple hidden />
-        <label for="files" class="upload-btn">⬆ Upload KML / KMZ</label>
       </div>
       <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
       <div id="list"></div>
