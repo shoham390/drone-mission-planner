@@ -80,8 +80,10 @@ document.getElementById('roi').onchange = applyPoi;
 // ---- mobile: fixed map/panel split — the bar's wheel is the driving-mode button ----
 document.getElementById('drivestart').addEventListener('click', () => setDriving(true));
 // panel sized so everything through the Save row is visible; map takes the rest
+let grabbed = false;                      // set once the user drags the grab bar (see below)
 function sizeSplit() {
   if (!window.matchMedia('(max-width: 640px)').matches) return;
+  if (grabbed) return;                    // user dragged the split — their height wins over the default
   const row = document.getElementById('save').closest('.row');
   const sec = row.closest('.sec');
   const h = Math.round(row.getBoundingClientRect().bottom - sec.getBoundingClientRect().top) + 16;
@@ -90,6 +92,20 @@ function sizeSplit() {
 }
 window.addEventListener('resize', sizeSplit);
 sizeSplit();
+// drag the grab bar to retune the map/menu split — pointer Y *is* the map height
+const grab = document.getElementById('grab');
+grab.addEventListener('pointerdown', e => {
+  grab.setPointerCapture(e.pointerId);
+  document.body.classList.add('grabbing');
+});
+grab.addEventListener('pointermove', e => {
+  if (!grab.hasPointerCapture(e.pointerId)) return;
+  grabbed = true;
+  const h = Math.min(Math.max(e.clientY, 120), window.innerHeight - 120); // leave both panes usable
+  document.documentElement.style.setProperty('--maph', `${Math.round(h)}px`);
+  map.resize();
+});
+grab.addEventListener('pointerup', () => document.body.classList.remove('grabbing'));
 // ponytail: terrain is always on (set in the style below) — no toggle control to turn it off.
 map.on('load', () => {
   map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

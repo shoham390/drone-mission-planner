@@ -69,7 +69,7 @@
        Hidden checkbox holds toggle state, the label is the button — same trick the old
        .tbtn row used, so #roi and #editverts keep their existing onchange handlers. */
     #mapbar { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 6;
-      display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center; gap: 4px; padding: 5px; border-radius: 999px;
       background: rgba(6,13,17,.72); border: 1px solid var(--glass-hi);
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
     .mapbtn { width: 44px; height: 44px; flex: none; padding: 0; border: 0; border-radius: 50%;
@@ -82,7 +82,6 @@
     .mb-cb:checked + .mapbtn { background: var(--blue); color: #04070a; box-shadow: var(--glow); }
     .mapbtn.danger { color: #ff9f97; }
     .mapbtn.wheelbtn { border: 1px solid var(--accent); color: var(--accent); box-shadow: var(--glow); }
-    .mb-push { flex: 1; }                            /* pushes Clear to the far end */
     /* driving mode owns the bottom strip — the bar would sit on top of it */
     body.driving #mapbar, body.driving #editctrls { display: none; }
     /* vertex tools: second pill, stacked directly above the bar */
@@ -158,7 +157,13 @@
     .sec { display: contents; }
     /* driving is a phone mode — no wheel button on desktop */
     .mapbtn.wheelbtn { display: none; }
+    #grab { display: none; }                        /* phone-only: drag the map/menu split */
     @media (max-width: 640px) {
+      #grab { display: flex; align-items: center; justify-content: center; flex: none; height: 16px;
+        background: var(--panel); border-top: 1px solid var(--line); touch-action: none; cursor: row-resize; }
+      #grab::before { content: ''; width: 44px; height: 4px; border-radius: 999px; background: var(--glass-hi); }
+      body.grabbing #map { transition: none; }      /* the .45s ease would lag behind the finger */
+      body.driving #grab { display: none; }
       body { flex-direction: column-reverse; }      /* map on top, panel below */
       #map { flex: none; height: var(--maph, 56dvh); min-height: 0;
              transition: height .45s cubic-bezier(.22,.61,.36,1); } /* driving on/off slides the menu */
@@ -241,6 +246,7 @@
       <div id="list"></div>
     </div>
   </div>
+  <div id="grab" aria-label="Drag to resize the map"></div>
   <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div>
     <div id="coordbox"></div>
     <!-- vertex tools: second pill above the bar, shown only while Edit is on -->
@@ -262,8 +268,7 @@
       <label class="mapbtn" for="roi" title="POI — frame live location with the target" aria-label="POI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></label>
       <input type="checkbox" id="editverts" class="mb-cb" hidden />
       <label class="mapbtn" for="editverts" title="Edit polygon vertices" aria-label="Edit polygon vertices"><svg viewBox="0 0 24 24"><path d="M5 7l7-3 7 3-2 10-5 3-5-3z"/><circle cx="5" cy="7" r="1.6"/><circle cx="19" cy="7" r="1.6"/><circle cx="12" cy="20" r="1.6"/></svg></label>
-      <span class="mb-push"></span>
-      <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button>
+      <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M20 4 10.6 12.4"/><path d="M9.4 11.4 12.6 14.6 11 18.7 5.3 13Z"/><path d="M11 13 8.2 15.8"/></svg></button>
     </div>
     <div id="driveoverlay">
       <button id="drivewheel" aria-label="Exit driving mode">
