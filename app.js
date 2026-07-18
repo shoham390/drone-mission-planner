@@ -14,10 +14,9 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file'; // per-file: no app 
 
 // ---- state ----
 let accessToken = null;
-let zones = []; // { id, name, lat, lng, center, corner, feature }
+let zones = []; // { id, name, lat, lng, center, feature }
 let numberMarkers = [];
 let focusedId = null; // zone the camera is zoomed to; tapping it again fits back
-let pointMode = 'center'; // nav-point per zone: 'center' (centroid) or 'corner' (first vertex)
 
 // ---- map: MapLibre GL (WebGL) — Esri imagery + free DEM for 3D terrain + hillshade ----
 // ponytail: DEM is AWS's open Terrain Tiles (terrarium), keyless. If it ever 404s,
@@ -79,15 +78,14 @@ function applyPoi() {
 document.getElementById('roi').onchange = applyPoi;
 
 // ---- mobile: fixed map/panel split — the bar's wheel is the driving-mode button ----
-const dragbar = document.getElementById('dragbar');
-dragbar?.addEventListener('click', () => setDriving(true));
-// panel sized so everything through the Save/Load-missions row is visible; map takes the rest
+document.getElementById('drivestart').addEventListener('click', () => setDriving(true));
+// panel sized so everything through the Save row is visible; map takes the rest
 function sizeSplit() {
   if (!window.matchMedia('(max-width: 640px)').matches) return;
   const row = document.getElementById('save').closest('.row');
   const sec = row.closest('.sec');
   const h = Math.round(row.getBoundingClientRect().bottom - sec.getBoundingClientRect().top) + 16;
-  document.documentElement.style.setProperty('--maph', `calc(100dvh - ${h + dragbar.offsetHeight}px)`);
+  document.documentElement.style.setProperty('--maph', `calc(100dvh - ${h}px)`);
   map.resize();
 }
 window.addEventListener('resize', sizeSplit);
@@ -535,12 +533,10 @@ function addZonesFromGeoJSON(gj, fileLabel) {
     const name = total[it.base] > 1 ? `${it.base} ${seen[it.base]}` : it.base;
     const [clng, clat] = centroid(it.ring);
     const center = { lat: clat, lng: clng };
-    const corner = { lat: it.ring[0][1], lng: it.ring[0][0] }; // ponytail: first vertex = the corner
-    const active = pointMode === 'corner' ? corner : center;
     const id = crypto.randomUUID();
     zones.push({
       id, name,
-      lat: active.lat, lng: active.lng, center, corner,
+      lat: center.lat, lng: center.lng, center,
       feature: { type: 'Feature', properties: { name, id }, geometry: { type: 'Polygon', coordinates: [it.ring] } },
     });
   }
@@ -598,12 +594,6 @@ $('clear').onclick = () => {
   $('routelink').style.display = 'none';
   $('missions').selectedIndex = 0; // so re-picking the just-cleared mission fires change
   render();
-};
-
-$('ptmode').onchange = () => {
-  pointMode = $('ptmode').checked ? 'corner' : 'center'; // slider: off=center, on=corner
-  for (const z of zones) { const p = z[pointMode]; z.lat = p.lat; z.lng = p.lng; }
-  if (numberMarkers.length) planRoute(); else render(); // refresh markers/links to the new point
 };
 
 $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY-MM-DD
@@ -736,6 +726,21 @@ async function refreshMissions() {
   sel.style.display = $('delmission').style.display = missions.length ? 'inline' : 'none';
   sel.innerHTML = '<option value="" disabled selected>Load mission…</option>' +
     missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
+  autoLoadLast(sel);
+}
+
+// reopen whatever was last on the map. Once per session and only onto an empty map,
+// so the refresh after a save/delete never clobbers work in progress.
+const LAST_KEY = 'dmp_last_mission';
+let autoLoaded = false;
+function autoLoadLast(sel) {
+  if (autoLoaded || zones.length) return;
+  autoLoaded = true;
+  const id = localStorage.getItem(LAST_KEY);
+  const opt = id && [...sel.options].find((o) => o.value === id);
+  if (!opt) return; // never saved one, or it's since been deleted
+  sel.value = id;
+  loadMission(id, opt.textContent);
 }
 $('missions').onchange = () => {
   const sel = $('missions');
@@ -755,6 +760,7 @@ $('delmission').onclick = async () => {
     body: JSON.stringify({ trashed: true }),
   });
   if (!r.ok) return alert("Couldn't delete that mission — try again.");
+  if (localStorage.getItem(LAST_KEY) === sel.value) localStorage.removeItem(LAST_KEY);
   refreshMissions(); // back to the placeholder — nothing auto-loads
 };
 
@@ -762,6 +768,7 @@ async function loadMission(id, name) {
   const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
   if (!r.ok) return alert("Couldn't load that mission — try again."); // never a silent no-op
   const doc = await r.json();
+  localStorage.setItem(LAST_KEY, id); // reopen this one on the next visit
   if (name) $('mname').value = name; // so Save overwrites the loaded mission by default
   numberMarkers.forEach((m) => m.remove());
   zones = []; numberMarkers = [];

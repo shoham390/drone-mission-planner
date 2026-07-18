@@ -61,12 +61,34 @@
       background: #fff; border-radius: 50%; transition: .15s; }
     .switch input:checked + .slider { background: var(--blue); }
     .switch input:checked + .slider::before { transform: translateX(20px); }
-    /* toggle buttons: hidden checkbox holds state, label is the button, :has lights it when checked */
-    .tbtn { flex: 1; text-align: center; padding: 8px 12px; border: 1px solid var(--glass-hi); border-radius: 10px;
-            cursor: pointer; background: var(--glass); color: var(--muted); font: inherit; font-size: 13px;
-            font-weight: 600; transition: .15s; user-select: none; }
-    .tbtn:hover { background: rgba(255,255,255,.12); border-color: rgba(150,190,255,.4); color: var(--text); }
-    .tbtn-cb:checked + .tbtn { background: var(--blue); border-color: var(--accent); color: #04070a; box-shadow: var(--glow); }
+    /* ---- map tool bar: frosted pill over the map (Fit / POI / Edit / Clear + driving) ----
+       Hidden checkbox holds toggle state, the label is the button — same trick the old
+       .tbtn row used, so #roi and #editverts keep their existing onchange handlers. */
+    #mapbar { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 6;
+      display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
+      background: rgba(6,13,17,.72); border: 1px solid var(--glass-hi);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .mapbtn { width: 44px; height: 44px; flex: none; padding: 0; border: 0; border-radius: 50%;
+      background: transparent; color: var(--text); cursor: pointer; transition: .15s;
+      display: flex; align-items: center; justify-content: center; }
+    .mapbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor;
+      stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .mapbtn:hover { background: var(--glass-hi); }
+    .mapbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .mb-cb:checked + .mapbtn { background: var(--blue); color: #04070a; box-shadow: var(--glow); }
+    .mapbtn.danger { color: #ff9f97; }
+    .mapbtn.wheelbtn { border: 1px solid var(--accent); color: var(--accent); box-shadow: var(--glow); }
+    .mb-push { flex: 1; }                            /* pushes Clear to the far end */
+    /* driving mode owns the bottom strip — the bar would sit on top of it */
+    body.driving #mapbar, body.driving #editctrls { display: none; }
+    /* vertex tools: second pill, stacked directly above the bar */
+    #editctrls { position: absolute; left: 10px; bottom: 68px; z-index: 6;
+      width: max-content; max-width: calc(100% - 20px);
+      display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
+      background: rgba(6,13,17,.72); border: 1px solid var(--glass-hi);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    #editnote { padding: 0 12px; font-size: 12px; color: var(--muted); }
+    #edittools { display: flex; align-items: center; gap: 4px; }
     /* ROI distance chip: solid dark background, colored text+border (currentColor set in JS) */
     .dist-chip { padding: 3px 9px; border-radius: 8px; background: #04070a; border: 1px solid currentColor;
                  font-size: 13px; font-weight: 700; white-space: nowrap; pointer-events: none; box-shadow: var(--glow); }
@@ -130,17 +152,14 @@
     .gate-card .note { font-size: 12px; margin: 20px 0 0; }
     /* desktop: wrappers are invisible — children flow in the side column as before */
     .sec { display: contents; }
-    #dragbar { display: none; }                       /* desktop: no split handle */
+    /* driving is a phone mode — no wheel button on desktop */
+    .mapbtn.wheelbtn { display: none; }
     @media (max-width: 640px) {
       body { flex-direction: column-reverse; }      /* map on top, panel below */
       #map { flex: none; height: var(--maph, 56dvh); min-height: 0;
              transition: height .45s cubic-bezier(.22,.61,.36,1); } /* driving on/off slides the menu */
-      #dragbar {                                      /* thin divider; the wheel floats on it */
-        display: block; flex: none; height: 10px; position: relative; z-index: 20;
-        background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-        cursor: pointer; transition: opacity .3s;
-      }
-      #side {                                         /* panel = horizontal pager */
+      .mapbtn.wheelbtn { display: flex; }
+      #side {                                       /* panel = horizontal pager */
         width: 100%; flex: 1; height: auto; min-height: 0; padding: 0; gap: 0;
         flex-direction: row; overflow-x: auto; overflow-y: hidden;
         scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
@@ -151,16 +170,12 @@
         flex: 0 0 100%; min-width: 0; padding: 16px; overflow-y: auto;
         scroll-snap-align: start; border-right: 1px solid var(--line);
       }
-      #side h1 { font-size: 16px; }
-      #side h1 small { display: none; }
     }
     /* ---- driving mode: transparent overlay, corner wheel, drum picker (mobile) ---- */
     #driveoverlay { display: none; }
-    /* entering driving: the map grows to full height, sliding menu + bar off the bottom
-       (they stay in flow below the fold so the exit transition slides them back up) */
+    /* entering driving: the map grows to full height, sliding the menu off the bottom
+       (it stays in flow below the fold so the exit transition slides it back up) */
     body.driving #map { height: 100dvh; }
-    /* hide the bar's wheel while driving — the overlay has its own, so two would show */
-    body.driving #dragbar { opacity: 0; pointer-events: none; }
     body.driving #driveoverlay { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
       padding: 12px 16px 14px; background: linear-gradient(180deg, transparent, rgba(4,7,10,.55) 40%); }
     #drivewheel { position: absolute; left: 16px; bottom: 16px; z-index: 8; width: 46px; height: 46px; padding: 0;
@@ -191,15 +206,6 @@
       border-radius: 12px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.5); color: var(--text);
       font-weight: 600; font-size: 14px; text-decoration: none; }
     #drivenav a svg { width: 18px; height: 18px; }
-    /* dragbar houses the driving-mode button: same circled wheel as the driving overlay */
-    #dragbar .wheelico { display: none; }
-    @media (max-width: 640px) {
-      #dragbar .wheelico { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%);
-        display: flex; align-items: center; justify-content: center;
-        width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--accent);
-        background: rgba(6,13,17,.92); box-shadow: var(--glow); }
-      #dragbar .wheelico svg { width: 26px; height: 26px; stroke: var(--accent); }
-    }
   </style>
 </head>
 <body>
@@ -212,56 +218,51 @@
   </div>
   <div id="side">
     <div class="sec">
-      <h1><svg class="drone" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M6.6 6.6 9.5 9.5M17.4 6.6 14.5 9.5M6.6 17.4 9.5 14.5M17.4 17.4 14.5 14.5"/><rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.2"/></svg>Drone Mission Planner<small>Upload KML/KMZ · plan the scan route · navigate</small></h1>
+      <div class="field">
+        <label class="field-label" for="mname">Mission</label>
+        <div class="row">
+          <input id="mname" placeholder="mission name" />
+        </div>
+        <div class="row">
+          <select id="missions" style="display:none"></select>
+          <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
+        </div>
+        <div class="row">
+          <button id="save" class="primary" disabled>Save mission</button>
+        </div>
+      </div>
       <div class="row">
         <input id="files" type="file" accept=".kml,.kmz" multiple hidden />
         <label for="files" class="upload-btn">⬆ Upload KML / KMZ</label>
       </div>
-      <div class="field">
-        <label class="field-label">Project name</label>
-        <div class="row">
-          <input id="mname" placeholder="project name" />
-        </div>
-      </div>
-      <div class="row">
-        <button id="save" disabled>Save mission</button>
-        <select id="missions" style="display:none"></select>
-        <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
-      </div>
-      <div class="row">
-        <button id="clear">Clear all</button>
-        <button id="fit">Fit</button>
-        <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
-      </div>
-      <div class="row" style="flex-wrap:nowrap">
-        <input type="checkbox" id="editverts" class="tbtn-cb" hidden />
-        <label class="tbtn" for="editverts" title="Edit polygon vertices">Edit</label>
-        <input type="checkbox" id="ptmode" class="tbtn-cb" hidden />
-        <label class="tbtn" for="ptmode" title="Pin at corner instead of center">Corner pin</label>
-        <input type="checkbox" id="roi" class="tbtn-cb" hidden />
-        <label class="tbtn" for="roi" title="POI — frame live location with the target">POI</label>
-      </div>
-      <div id="editctrls" style="display:none">
-        <div id="editnote" class="field-label" style="margin-top:6px; display:none">Select a polygon</div>
-        <div id="edittools" style="display:none">
-          <div class="field-label" style="margin-top:6px">Tap a vertex:</div>
-          <div class="row">
-            <button id="vadd" title="Add vertex">＋</button>
-            <button id="vdel" title="Remove vertex">－</button>
-            <button id="vreset" title="Reset polygon">↺</button>
-          </div>
-          <div class="row switchrow" style="margin-top:6px">
-            <label class="switch"><input type="checkbox" id="origtoggle" checked /><span class="slider"></span></label>
-            <span>Show original</span>
-          </div>
-        </div>
-      </div>
+      <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
       <div id="list"></div>
     </div>
   </div>
-  <div id="dragbar"><span class="wheelico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg></span></div>
   <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div>
     <div id="coordbox"></div>
+    <!-- vertex tools: second pill above the bar, shown only while Edit is on -->
+    <div id="editctrls" style="display:none">
+      <div id="editnote" style="display:none">Select a polygon</div>
+      <div id="edittools" style="display:none">
+        <button id="vadd" class="mapbtn" title="Add vertex" aria-label="Add vertex"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button id="vdel" class="mapbtn" title="Remove vertex" aria-label="Remove vertex"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button id="vreset" class="mapbtn" title="Reset polygon" aria-label="Reset polygon"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+        <input type="checkbox" id="origtoggle" class="mb-cb" checked hidden />
+        <label class="mapbtn" for="origtoggle" title="Show original outline" aria-label="Show original outline"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></label>
+      </div>
+    </div>
+    <!-- map tool bar: Fit / POI / Edit / Clear, with the driving wheel at the left end -->
+    <div id="mapbar">
+      <button id="drivestart" class="mapbtn wheelbtn" title="Driving mode" aria-label="Enter driving mode"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg></button>
+      <button id="fit" class="mapbtn" title="Fit all zones" aria-label="Fit all zones"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <input type="checkbox" id="roi" class="mb-cb" hidden />
+      <label class="mapbtn" for="roi" title="POI — frame live location with the target" aria-label="POI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></label>
+      <input type="checkbox" id="editverts" class="mb-cb" hidden />
+      <label class="mapbtn" for="editverts" title="Edit polygon vertices" aria-label="Edit polygon vertices"><svg viewBox="0 0 24 24"><path d="M5 7l7-3 7 3-2 10-5 3-5-3z"/><circle cx="5" cy="7" r="1.6"/><circle cx="19" cy="7" r="1.6"/><circle cx="12" cy="20" r="1.6"/></svg></label>
+      <span class="mb-push"></span>
+      <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button>
+    </div>
     <div id="driveoverlay">
       <button id="drivewheel" aria-label="Exit driving mode">
         <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg>
