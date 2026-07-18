@@ -45,6 +45,10 @@
                     background: rgba(30,42,70,.5); color: var(--text); font: inherit; }
     input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
     input[type=text], #mname { flex: 1; min-width: 0; }
+    /* load-missions row: the list takes the slack, Save and 🗑 keep their size.
+       align-self:stretch because a select renders 1px shorter than a button. */
+    #missions { flex: 1; min-width: 0; align-self: stretch; }
+    #save, #delmission { flex: none; }
     .upload-btn { width: 100%; text-align: center; padding: 14px; border: 1px dashed rgba(150,190,255,.35);
                   border-radius: 12px; cursor: pointer; color: var(--muted); background: rgba(255,255,255,.03); }
     .upload-btn:hover { background: var(--glass); color: var(--text); border-color: var(--accent); }
@@ -227,12 +231,10 @@
         <div class="row">
           <input id="mname" placeholder="mission name" />
         </div>
-        <div class="row">
+        <div class="row" style="flex-wrap:nowrap">
           <select id="missions" style="display:none"></select>
           <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
-        </div>
-        <div class="row">
-          <button id="save" class="primary" disabled>Save mission</button>
+          <button id="save" class="primary" disabled>Save</button>
         </div>
       </div>
       <a id="routelink" href="#" target="_blank" rel="noopener" style="display:none">▶ Full route in Google Maps</a>
