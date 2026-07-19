@@ -75,6 +75,19 @@ function applyPoi() {
   roiNote();
 }
 document.getElementById('roi').onchange = applyPoi;
+// Drop POI without re-framing: used when the user takes over the camera themselves
+// (Fit, or any pan/zoom gesture). Calling applyPoi here would fight them by flying
+// somewhere on the way out.
+function poiOff() {
+  if (!$('roi').checked) return;
+  $('roi').checked = false;
+  map.getSource('roibox')?.setData(EMPTY_FC);
+  hideDist();
+  roiNote();
+}
+// A user gesture on the map means manual control — let go of the POI framing. Our own
+// camera moves (fitBounds/flyTo/geolocate) carry no originalEvent, so they don't trip it.
+map.on('movestart', (e) => { if (e.originalEvent) poiOff(); });
 
 // ---- mobile: driving mode IS the phone UI — no side menu, no way in or out ----
 // The bar's Save/Load/Upload icons drive the desktop menu's own controls, which stay in
@@ -349,7 +362,7 @@ function flyToZone(z) {
   if ($('roi').checked && userLoc) { frameRoi(900); return; }
   framePolygon(z);
 }
-$('fit').onclick = () => fitZones();
+$('fit').onclick = () => { poiOff(); fitZones(); }; // Fit is a manual framing — POI lets go
 function fitZones(opts) {
   if (!zones.length) return;
   const b = new maplibregl.LngLatBounds();
@@ -757,14 +770,17 @@ async function refreshMissions() {
 // so the refresh after a save/delete never clobbers work in progress.
 const LAST_KEY = 'dmp_last_mission';
 let autoLoaded = false;
-function autoLoadLast(sel) {
+async function autoLoadLast(sel) {
   if (autoLoaded || zones.length) return;
-  autoLoaded = true;
   const id = localStorage.getItem(LAST_KEY);
   const opt = id && [...sel.options].find((o) => o.value === id);
   if (!opt) return; // never saved one, or it's since been deleted
   sel.value = id;
-  loadMission(id, opt.textContent);
+  await loadMission(id, opt.textContent);
+  // Only stop retrying once it actually worked. Marking this up front meant a first
+  // attempt that failed (expired token on a refresh, dropped connection) permanently
+  // disabled the restore — the next successful refreshMissions() would skip it.
+  autoLoaded = zones.length > 0;
 }
 $('missions').onchange = () => {
   const sel = $('missions');
