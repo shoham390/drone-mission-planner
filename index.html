@@ -81,9 +81,17 @@
     .mapbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .mb-cb:checked + .mapbtn { background: var(--blue); color: #04070a; box-shadow: var(--glow); }
     .mapbtn.danger { color: #ff9f97; }
-    .mapbtn.wheelbtn { border: 1px solid var(--accent); color: var(--accent); box-shadow: var(--glow); }
-    /* driving mode owns the bottom strip — the bar would sit on top of it */
-    body.driving #mapbar, body.driving #editctrls { display: none; }
+    /* phone-only bar icons (upload / load / save) — desktop keeps them in the side menu */
+    .phonebtn { display: none; }
+    /* load icon: the real #missions select is moved in here by JS and laid over the icon at
+       opacity 0, so the native picker opens on tap and the existing onchange still fires. */
+    #loadslot { position: relative; overflow: hidden; }
+    #loadslot select { position: absolute; inset: 0; width: 100%; height: 100%;
+      opacity: 0; border: 0; padding: 0; }
+    /* driving mode owns the bottom strip — the vertex pill would sit on top of it.
+       ponytail: 250px is the measured overlay height; re-tune if the overlay grows. */
+    body.driving #editctrls { display: none; }
+    body.driving #mapbar { bottom: 250px; }
     /* vertex tools: second pill, stacked directly above the bar */
     #editctrls { position: absolute; left: 10px; bottom: 68px; z-index: 6;
       width: max-content; max-width: calc(100% - 20px);
@@ -155,8 +163,6 @@
     .gate-card .note { font-size: 12px; margin: 20px 0 0; }
     /* desktop: wrappers are invisible — children flow in the side column as before */
     .sec { display: contents; }
-    /* driving is a phone mode — no wheel button on desktop */
-    .mapbtn.wheelbtn { display: none; }
     #grab { display: none; }                        /* phone-only: drag the map/menu split */
     @media (max-width: 640px) {
       #grab { display: flex; align-items: center; justify-content: center; flex: none; height: 16px;
@@ -167,7 +173,7 @@
       body { flex-direction: column-reverse; }      /* map on top, panel below */
       #map { flex: none; height: var(--maph, 56dvh); min-height: 0;
              transition: height .45s cubic-bezier(.22,.61,.36,1); } /* driving on/off slides the menu */
-      .mapbtn.wheelbtn { display: flex; }
+      .phonebtn { display: flex; }
       #side {                                       /* panel = horizontal pager */
         width: 100%; flex: 1; height: auto; min-height: 0; padding: 0; gap: 0;
         flex-direction: row; overflow-x: auto; overflow-y: hidden;
@@ -187,10 +193,6 @@
     body.driving #map { height: 100dvh; }
     body.driving #driveoverlay { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
       padding: 12px 16px 14px; background: linear-gradient(180deg, transparent, rgba(4,7,10,.55) 40%); }
-    #drivewheel { position: absolute; left: 16px; bottom: 16px; z-index: 8; width: 46px; height: 46px; padding: 0;
-      border-radius: 50%; border: 1px solid var(--accent); background: rgba(6,13,17,.82); display: flex;
-      align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--glow); }
-    #drivewheel svg { width: 27px; height: 27px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
     #poirow { display: flex; justify-content: flex-start; margin-bottom: 2px; }
     .poi-pill { padding: 8px 20px; border-radius: 999px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.55);
       color: var(--muted); font: inherit; font-weight: 700; letter-spacing: 1px; font-size: 13px; cursor: pointer; }
@@ -210,7 +212,7 @@
     #drivepicker .opt .oi { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--accent);
       color: #04070a; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
     #drivepicker .opt.cur .on { color: var(--accent); text-shadow: var(--glow); }
-    #drivenav { display: flex; gap: 10px; margin-top: 6px; padding-left: 60px; }
+    #drivenav { display: flex; gap: 10px; margin-top: 6px; }
     #drivenav a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px;
       border-radius: 12px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.5); color: var(--text);
       font-weight: 600; font-size: 14px; text-decoration: none; }
@@ -260,9 +262,11 @@
         <label class="mapbtn" for="origtoggle" title="Show original outline" aria-label="Show original outline"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></label>
       </div>
     </div>
-    <!-- map tool bar: Fit / POI / Edit / Clear, with the driving wheel at the left end -->
+    <!-- map tool bar: Upload / Load / Save (phone only) + Fit / POI / Edit / Clear -->
     <div id="mapbar">
-      <button id="drivestart" class="mapbtn wheelbtn" title="Driving mode" aria-label="Enter driving mode"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg></button>
+      <label for="files" class="mapbtn phonebtn" title="Upload KML / KMZ" aria-label="Upload KML or KMZ"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></label>
+      <span id="loadslot" class="mapbtn phonebtn" title="Load mission" aria-label="Load mission"><svg viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+      <button id="savebtn" class="mapbtn phonebtn" title="Save mission" aria-label="Save mission"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h7V4"/><path d="M8 14h8v7H8z"/></svg></button>
       <button id="fit" class="mapbtn" title="Fit all zones" aria-label="Fit all zones"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <input type="checkbox" id="roi" class="mb-cb" hidden />
       <label class="mapbtn" for="roi" title="POI — frame live location with the target" aria-label="POI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></label>
@@ -271,9 +275,6 @@
       <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M20 4 10.6 12.4"/><path d="M9.4 11.4 12.6 14.6 11 18.7 5.3 13Z"/><path d="M11 13 8.2 15.8"/></svg></button>
     </div>
     <div id="driveoverlay">
-      <button id="drivewheel" aria-label="Exit driving mode">
-        <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M3.6 9h16.8"/><path d="M12 15v6"/></svg>
-      </button>
       <div id="poirow"><button id="poipill" class="poi-pill" aria-pressed="false">POI</button></div>
       <div id="drivepickwrap"><div id="drivepicker"></div></div>
       <div id="drivenav">

@@ -77,8 +77,21 @@ function applyPoi() {
 }
 document.getElementById('roi').onchange = applyPoi;
 
-// ---- mobile: fixed map/panel split — the bar's wheel is the driving-mode button ----
-document.getElementById('drivestart').addEventListener('click', () => setDriving(true));
+// ---- mobile: driving mode IS the phone UI — no side menu, no way in or out ----
+// The bar's Save/Load/Upload icons drive the desktop menu's own controls, which stay in
+// the DOM behind the overlay, so save/load logic is unchanged.
+const PHONE = window.matchMedia('(max-width: 640px)').matches;
+if (PHONE) {
+  document.getElementById('loadslot').append(document.getElementById('missions')); // same select, same onchange
+  document.getElementById('savebtn').onclick = () => {
+    const n = prompt('Mission name', document.getElementById('mname').value);
+    if (n === null) return;
+    if (n.trim()) document.getElementById('mname').value = n.trim();
+    document.getElementById('save').click(); // no-ops while disabled, so no state to mirror
+  };
+  // setDriving runs from enterApp(), not here — it asks for a location fix, and that
+  // prompt must not land on top of the sign-in gate.
+}
 // panel sized so everything through the Save row is visible; map takes the rest
 let grabbed = false;                      // set once the user drags the grab bar (see below)
 function sizeSplit() {
@@ -446,6 +459,7 @@ function enterApp() {
   map.resize(); // container sized after the gate hid
   $('save').disabled = false;
   refreshMissions(); // show the saved missions right away
+  if (PHONE) setDriving(true); // phone has no menu — driving mode is the whole UI
 }
 function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -740,6 +754,7 @@ async function refreshMissions() {
   const missions = files.filter((f) => f.name.endsWith('.mission.json'));
   const sel = $('missions');
   sel.style.display = $('delmission').style.display = missions.length ? 'inline' : 'none';
+  $('loadslot').style.opacity = missions.length ? '' : '.35'; // phone: don't show a dead icon
   sel.innerHTML = '<option value="" disabled selected>Load mission…</option>' +
     missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
   autoLoadLast(sel);
@@ -879,5 +894,4 @@ function setDriving(on) {
     requestAnimationFrame(drumStyle);
   }
 }
-$('drivewheel').onclick = () => setDriving(false);
 $('poipill').onclick = () => { $('roi').checked = !$('roi').checked; applyPoi(); };

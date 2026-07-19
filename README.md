@@ -20,8 +20,18 @@ require app verification.
 ## Run locally
 
 ```
-python3 -m http.server 8080   # then open http://localhost:8080
+python3 -m http.server 8000
 ```
+
+- Desktop preview: http://localhost:8000
+- iPhone preview: http://localhost:8000/.claude/iphone.html
+
+`.claude/iphone.html` wraps `index.html` in a 390×844 iframe with a phone bezel, for
+checking mobile layout without DevTools emulation. It lives in `.claude/` because that
+dir is gitignored — it's a local dev aid, not part of the app.
+
+Whichever port you use, it must be listed as an **Authorized JavaScript origin** on the
+OAuth client (see setup above) or Google login fails.
 
 ## Deploy (GitHub Pages)
 
