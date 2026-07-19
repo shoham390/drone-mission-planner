@@ -66,7 +66,7 @@ geolocate.on('geolocate', (e) => {
   if (!$('roi').checked) return;
   frameRoi(500); // tracks the ping-or-polygon target; falls back to fit-all when neither
 });
-// POI (was ROI): the top-row toggle and the driving-mode pill share this one path.
+// POI (was ROI): the side-menu toggle and the map bar's POI button share this one path.
 function applyPoi() {
   if ($('roi').checked) geolocate.trigger(); // make sure we have a live fix
   if (document.body.classList.contains('driving')) { driveFrame(true); roiNote(); return; }
@@ -300,6 +300,20 @@ function drawRoiLine() {
   ] });
   showDist(mid, label, color);
 }
+// Padding for every framing call. In driving mode the drum, nav row and tool bar cover
+// the bottom of the map, so anything framed into that strip is hidden behind them —
+// reserve it instead of padding evenly, making the usable frame full width from the top
+// of the map down to the top of the drum. Clamped so top + bottom can never eat the
+// whole canvas (which would make fitBounds produce a garbage zoom).
+function framePad(base) {
+  const pad = { top: base, bottom: base, left: base, right: base };
+  if (!document.body.classList.contains('driving')) return pad;
+  const m = document.getElementById('map').getBoundingClientRect();
+  const drum = document.getElementById('drivepickwrap').getBoundingClientRect();
+  const strip = Math.round(m.bottom - drum.top) + 8; // drum top → bottom of the map
+  pad.bottom = Math.min(Math.max(base, strip), Math.max(base, m.height - base - 40));
+  return pad;
+}
 // Frame the target + live position in one frame, then draw the line. Re-called on
 // each location update while driving (shorter duration) so the frame tracks you.
 function frameRoi(duration) {
@@ -310,7 +324,7 @@ function frameRoi(duration) {
   b.extend(userLoc); b.extend(a);
   // frame the whole polygon (not just its centroid) when pointing at a polygon, not a ping
   if (!coordPin && roiZone) for (const c of roiZone.feature.geometry.coordinates[0]) b.extend(c);
-  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
+  map.fitBounds(b, { padding: framePad(80), maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
   drawRoiLine();
 }
 // distance chip as a DOM marker: glides with your position (no symbol flicker) and
@@ -330,7 +344,7 @@ function frameRoiAll(duration) {
   const b = new maplibregl.LngLatBounds();
   for (const z of zones) for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
   b.extend(userLoc);
-  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
+  map.fitBounds(b, { padding: framePad(80), maxZoom: 16, pitch: 0, bearing: 0, duration, essential: true });
   map.getSource('roibox')?.setData(EMPTY_FC);
   hideDist();
 }
@@ -351,7 +365,7 @@ function roiNote() {
 function framePolygon(z, duration = 900) {
   const b = new maplibregl.LngLatBounds();
   for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
-  const cam = map.cameraForBounds(b, { padding: 80, maxZoom: 16 });
+  const cam = map.cameraForBounds(b, { padding: framePad(80), maxZoom: 16 });
   if (!cam) return; // degenerate ring — nothing to frame
   map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 0, bearing: 0, duration, essential: true });
 }
@@ -367,7 +381,7 @@ function fitZones(opts) {
   if (!zones.length) return;
   const b = new maplibregl.LngLatBounds();
   for (const z of zones) for (const [x, y] of z.feature.geometry.coordinates[0]) b.extend([x, y]);
-  map.fitBounds(b, { padding: 40, duration: 600, ...opts });
+  map.fitBounds(b, { padding: framePad(40), duration: 600, ...opts });
 }
 
 // CAD-style: the NavigationControl compass IS the gimbal indicator (needle tilts
@@ -848,9 +862,9 @@ async function loadMission(id, name) {
   addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) }); // plans the route itself
 }
 
-// ---- driving mode (mobile): frameless overlay, corner wheel, iOS-style drum picker ----
-// Reuses the POI framing path: picking a zone in the drum sets it as the ROI target
-// and flyToZone frames it (+ live location when POI is on, polygon only when off).
+// ---- driving mode (mobile): frameless overlay, iOS-style drum picker ----
+// Picking a zone in the drum sets it as the ROI target; driveFrame() then frames that
+// polygon. The live position is never part of the camera bounds — see driveFrame.
 let driveCur = 0, driveSettle;
 // rebuild the drum and centre it on zone `i` — the single path for "zones changed"
 function resetDrum(i = 0) {
@@ -859,6 +873,10 @@ function resetDrum(i = 0) {
   setDriveCur(i);
   $('drivepicker').scrollTop = i * 44; // 44px per row → centre the current zone
   requestAnimationFrame(drumStyle);
+  // Frame it too. On the auto-load path the zones arrive AFTER setDriving() has already
+  // run, so without this the camera is never pointed at them and the restored mission
+  // looks like it failed to load.
+  driveFrame(true);
 }
 function buildDrum() {
   const p = $('drivepicker');
@@ -894,20 +912,16 @@ function driveScroll() {
   clearTimeout(driveSettle);
   driveSettle = setTimeout(() => { if (zones[driveCur]) driveFrame(true); }, 120); // reframe once it settles
 }
-// driving-mode framing. POI on: jump to the polygon itself — your live position is drawn
-// (dashed line + distance chip) but never pulls the camera. POI off: follow the live
-// location. `force` marks an explicit action (pick a zone, toggle POI); a passive GPS
-// tick only refreshes the line, so the frame you're looking at is never yanked away.
+// driving-mode framing. The camera always frames the polygon — the live position never
+// pulls it, in either POI state. POI only controls whether the dashed line + distance
+// chip to your location are drawn. `force` marks an explicit action (pick a zone, toggle
+// POI, load a mission); a passive GPS tick only refreshes the line, so the frame you're
+// looking at is never yanked away mid-drive.
 function driveFrame(force) {
   if (!document.body.classList.contains('driving')) return;
-  if (!$('roi').checked) { // POI off → follow the live location
-    map.getSource('roibox')?.setData(EMPTY_FC); hideDist();
-    if (userLoc) map.easeTo({ center: userLoc, zoom: Math.max(map.getZoom(), 16),
-      pitch: 0, bearing: 0, duration: 500, essential: true });
-    return;
-  }
+  if ($('roi').checked) drawRoiLine(); // no-ops into a clear when there's no fix yet
+  else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); }
   const z = roiZone; if (!z) return;
-  drawRoiLine(); // no-ops into a clear when there's no fix yet
   if (force) framePolygon(z, 500);
 }
 let driveAnim;

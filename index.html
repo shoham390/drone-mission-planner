@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- the page itself never pans or zooms — only the map does. maximum-scale pins the
+       page scale; touch-action kills double-tap zoom. iOS Safari overrides user-scalable
+       for accessibility, so the position:fixed body below is what actually holds the
+       page still there. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Drone Mission Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <style>
@@ -16,6 +20,7 @@
     /* position:fixed is the only reliable page-scroll lock on iOS Safari (overflow:hidden isn't). */
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: row-reverse;
            position: fixed; inset: 0; height: 100dvh; width: 100%; color: var(--text);
+           touch-action: manipulation; /* no double-tap zoom; the map sets its own */
            background: radial-gradient(120% 80% at 50% -10%, #0a1c22 0%, #060f14 45%, var(--bg) 100%); }
     #side { width: 340px; flex: none; padding: 18px; overflow-y: auto; background: var(--panel);
             backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
