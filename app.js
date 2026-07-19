@@ -81,13 +81,8 @@ document.getElementById('roi').onchange = applyPoi;
 // the DOM behind the overlay, so save/load logic is unchanged.
 const PHONE = window.matchMedia('(max-width: 640px)').matches;
 if (PHONE) {
-  document.getElementById('loadslot').append(document.getElementById('missions')); // same select, same onchange
-  document.getElementById('savebtn').onclick = () => {
-    const n = prompt('Mission name', document.getElementById('mname').value);
-    if (n === null) return;
-    if (n.trim()) document.getElementById('mname').value = n.trim();
-    document.getElementById('save').click(); // no-ops while disabled, so no state to mirror
-  };
+  document.getElementById('savebtn').onclick = openSaveDialog;
+  document.getElementById('loadslot').onclick = openLoadDialog;
   // setDriving runs from enterApp(), not here — it asks for a location fix, and that
   // prompt must not land on top of the sign-in gate.
 }
@@ -352,17 +347,20 @@ function roiNote() {
     setTimeout(() => { n.style.display = 'none'; }, 400); // wait out the fade
   }, 2500);
 }
+// frame just the polygon — no live position in the bounds
+function framePolygon(z, duration = 900) {
+  const b = new maplibregl.LngLatBounds();
+  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
+  const cam = map.cameraForBounds(b, { padding: 80, maxZoom: 16 });
+  if (!cam) return; // degenerate ring — nothing to frame
+  map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 0, bearing: 0, duration, essential: true });
+}
 function flyToZone(z) {
   roiZone = z; // remember the target so ROI can re-frame it as the live position moves
   roiNote();
   // ROI on (with a fix): frame the target + your live position, else just the polygon.
   if ($('roi').checked && userLoc) { frameRoi(900); return; }
-  const b = new maplibregl.LngLatBounds();
-  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
-  const cam = map.cameraForBounds(b, { padding: 80, maxZoom: 16 });
-  if (!cam) return; // degenerate ring — nothing to frame
-  map.flyTo({ center: cam.center, zoom: cam.zoom, pitch: 0, bearing: 0,
-    duration: 900, essential: true });
+  framePolygon(z);
 }
 $('fit').onclick = () => fitZones();
 function fitZones(opts) {
@@ -780,22 +778,64 @@ $('missions').onchange = () => {
   if (sel.value) loadMission(sel.value, sel.selectedOptions[0].textContent);
 };
 
-// delete the selected mission — trash, not permanent: recoverable from Drive trash.
-$('delmission').onclick = async () => {
-  const sel = $('missions');
-  // the "Load mission…" placeholder is selected — there's nothing to delete yet
-  if (!sel.value) return alert('Pick the mission to delete from the list first.');
-  const name = sel.options[sel.selectedIndex]?.text;
+// delete a mission — trash, not permanent: recoverable from Drive trash. One path for
+// both the desktop 🗑 and the phone dialog's per-row delete.
+async function deleteMission(id, name) {
   if (!confirm(`Delete "${name}"?`)) return;
-  const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${sel.value}`, {
+  const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ trashed: true }),
   });
   if (!r.ok) return alert("Couldn't delete that mission — try again.");
-  if (localStorage.getItem(LAST_KEY) === sel.value) localStorage.removeItem(LAST_KEY);
-  refreshMissions(); // back to the placeholder — nothing auto-loads
+  if (localStorage.getItem(LAST_KEY) === id) localStorage.removeItem(LAST_KEY);
+  await refreshMissions(); // back to the placeholder — nothing auto-loads
+  if ($('loaddlg').open) fillMissionList(); // keep the open dialog in step
+}
+$('delmission').onclick = () => {
+  const sel = $('missions');
+  // the "Load mission…" placeholder is selected — there's nothing to delete yet
+  if (!sel.value) return alert('Pick the mission to delete from the list first.');
+  deleteMission(sel.value, sel.options[sel.selectedIndex]?.text);
 };
+
+// ---- phone save/load dialogs. Both read from the #missions select the desktop menu
+// already maintains, so there's no second source of truth for what's saved. ----
+function openSaveDialog() {
+  if ($('save').disabled) return; // nothing loaded yet — same no-op as the desktop button
+  $('dlgname').value = $('mname').value;
+  $('savedlg').returnValue = ''; // stale 'save' from a previous open would re-fire the close handler
+  $('savedlg').showModal();
+  $('dlgname').select();
+}
+$('savedlg').addEventListener('close', () => {
+  if ($('savedlg').returnValue !== 'save') return;
+  const n = $('dlgname').value.trim();
+  if (n) $('mname').value = n;
+  $('save').click();
+});
+function fillMissionList() {
+  const opts = [...$('missions').options].filter((o) => o.value);
+  const list = $('loadlist');
+  list.innerHTML = '';
+  if (!opts.length) { list.innerHTML = '<p class="empty">No saved missions yet.</p>'; return; }
+  for (const o of opts) {
+    const row = document.createElement('div');
+    row.className = 'mission-row';
+    row.innerHTML = '<button class="pick"></button>' +
+      '<button class="del" title="Delete mission" aria-label="Delete mission">🗑</button>';
+    row.querySelector('.pick').textContent = o.textContent;
+    row.querySelector('.pick').onclick = () => {
+      $('loaddlg').close();
+      $('missions').value = o.value; // keep the desktop select in step
+      loadMission(o.value, o.textContent);
+    };
+    row.querySelector('.del').onclick = () => deleteMission(o.value, o.textContent);
+    list.appendChild(row);
+  }
+}
+function openLoadDialog() { fillMissionList(); $('loaddlg').showModal(); }
+$('loadclose').onclick = () => $('loaddlg').close();
 
 async function loadMission(id, name) {
   const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
@@ -854,9 +894,10 @@ function driveScroll() {
   clearTimeout(driveSettle);
   driveSettle = setTimeout(() => { if (zones[driveCur]) driveFrame(true); }, 120); // reframe once it settles
 }
-// driving-mode framing. POI on: keep the polygon + you in view, but once you're within
-// 1.5 km stop tightening — preserve the frame. POI off: just follow (zoom to) the live
-// location. `force` overrides the 1.5 km freeze for explicit actions (pick a zone, toggle POI).
+// driving-mode framing. POI on: jump to the polygon itself — your live position is drawn
+// (dashed line + distance chip) but never pulls the camera. POI off: follow the live
+// location. `force` marks an explicit action (pick a zone, toggle POI); a passive GPS
+// tick only refreshes the line, so the frame you're looking at is never yanked away.
 function driveFrame(force) {
   if (!document.body.classList.contains('driving')) return;
   if (!$('roi').checked) { // POI off → follow the live location
@@ -866,15 +907,8 @@ function driveFrame(force) {
     return;
   }
   const z = roiZone; if (!z) return;
-  if (!userLoc) { flyToZone(z); return; } // no fix yet → just frame the polygon
-  drawRoiLine();
-  const a = roiTarget();
-  const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
-  if (!force && km <= 1.5) return; // inside 1.5 km → preserve the frame, no more zoom-in
-  const b = new maplibregl.LngLatBounds();
-  b.extend(userLoc); b.extend(a);
-  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
-  map.fitBounds(b, { padding: 80, maxZoom: 16, pitch: 0, bearing: 0, duration: 500, essential: true });
+  drawRoiLine(); // no-ops into a clear when there's no fix yet
+  if (force) framePolygon(z, 500);
 }
 let driveAnim;
 function setDriving(on) {

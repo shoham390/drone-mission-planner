@@ -83,11 +83,22 @@
     .mapbtn.danger { color: #ff9f97; }
     /* phone-only bar icons (upload / load / save) — desktop keeps them in the side menu */
     .phonebtn { display: none; }
-    /* load icon: the real #missions select is moved in here by JS and laid over the icon at
-       opacity 0, so the native picker opens on tap and the existing onchange still fires. */
-    #loadslot { position: relative; overflow: hidden; }
-    #loadslot select { position: absolute; inset: 0; width: 100%; height: 100%;
-      opacity: 0; border: 0; padding: 0; }
+    /* ---- save / load dialogs (phone): same card language as .gate-card ---- */
+    .dlg { width: min(88vw, 340px); padding: 20px; border-radius: 16px; color: var(--text); font: inherit;
+      background: #0a0e11; border: 1px solid rgba(0,229,255,.2);
+      box-shadow: 0 0 34px rgba(0,229,255,.14), 0 24px 60px rgba(0,0,0,.6); }
+    .dlg::backdrop { background: rgba(2,6,9,.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+    .dlg[open], .dlg form { display: flex; flex-direction: column; gap: 14px; }
+    .dlg h2 { margin: 0; font-size: 17px; font-weight: 650; color: var(--accent); text-shadow: var(--glow); }
+    #dlgname { width: 100%; }
+    .dlg-actions { display: flex; flex-direction: row-reverse; gap: 8px; }
+    .dlg-actions button { flex: 1; }
+    #loadlist { display: flex; flex-direction: column; gap: 8px; max-height: 46dvh; overflow-y: auto; }
+    #loadlist .empty { color: var(--muted); font-size: 13px; }
+    .mission-row { display: flex; gap: 8px; }
+    .mission-row .pick { flex: 1; min-width: 0; text-align: left; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .mission-row .del { flex: none; color: #ff9f97; }
     body.driving #editctrls { display: none; }
     /* vertex tools: second pill, stacked directly above the bar */
     #editctrls { position: absolute; left: 10px; bottom: 68px; z-index: 6;
@@ -261,7 +272,7 @@
     <!-- map tool bar: Upload / Load / Save (phone only) + Fit / POI / Edit / Clear -->
     <div id="mapbar">
       <label for="files" class="mapbtn phonebtn" title="Upload KML / KMZ" aria-label="Upload KML or KMZ"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></label>
-      <span id="loadslot" class="mapbtn phonebtn" title="Load mission" aria-label="Load mission"><svg viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+      <button id="loadslot" class="mapbtn phonebtn" title="Load mission" aria-label="Load mission"><svg viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></button>
       <button id="savebtn" class="mapbtn phonebtn" title="Save mission" aria-label="Save mission"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h7V4"/><path d="M8 14h8v7H8z"/></svg></button>
       <button id="fit" class="mapbtn" title="Fit all zones" aria-label="Fit all zones"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <input type="checkbox" id="roi" class="mb-cb" hidden />
@@ -277,6 +288,25 @@
         <a id="drivewaze" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>Waze</a>
       </div>
     </div></div>
+
+  <!-- phone save/load dialogs. Native <dialog>: backdrop, Esc-to-close and focus
+       handling are the platform's job, not ours. Save is first in the form so Enter
+       submits it; .dlg-actions is row-reverse so it still renders on the right. -->
+  <dialog id="savedlg" class="dlg">
+    <form method="dialog">
+      <h2>Save mission</h2>
+      <input id="dlgname" placeholder="mission name" autocomplete="off" />
+      <div class="dlg-actions">
+        <button value="save" class="primary">Save</button>
+        <button value="cancel" formnovalidate>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="loaddlg" class="dlg">
+    <h2>Load mission</h2>
+    <div id="loadlist"></div>
+    <div class="dlg-actions"><button id="loadclose">Close</button></div>
+  </dialog>
 
   <script src="https://accounts.google.com/gsi/client" async></script>
   <!-- cache-bust: GitHub Pages caches app.js/geo.js for 10 min; always load the
