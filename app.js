@@ -86,33 +86,6 @@ if (PHONE) {
   // setDriving runs from enterApp(), not here — it asks for a location fix, and that
   // prompt must not land on top of the sign-in gate.
 }
-// panel sized so everything through the Save row is visible; map takes the rest
-let grabbed = false;                      // set once the user drags the grab bar (see below)
-function sizeSplit() {
-  if (!window.matchMedia('(max-width: 640px)').matches) return;
-  if (grabbed) return;                    // user dragged the split — their height wins over the default
-  const row = document.getElementById('save').closest('.row');
-  const sec = row.closest('.sec');
-  const h = Math.round(row.getBoundingClientRect().bottom - sec.getBoundingClientRect().top) + 16;
-  document.documentElement.style.setProperty('--maph', `calc(100dvh - ${h}px)`);
-  map.resize();
-}
-window.addEventListener('resize', sizeSplit);
-sizeSplit();
-// drag the grab bar to retune the map/menu split — pointer Y *is* the map height
-const grab = document.getElementById('grab');
-grab.addEventListener('pointerdown', e => {
-  grab.setPointerCapture(e.pointerId);
-  document.body.classList.add('grabbing');
-});
-grab.addEventListener('pointermove', e => {
-  if (!grab.hasPointerCapture(e.pointerId)) return;
-  grabbed = true;
-  const h = Math.min(Math.max(e.clientY, 120), window.innerHeight - 120); // leave both panes usable
-  document.documentElement.style.setProperty('--maph', `${Math.round(h)}px`);
-  map.resize();
-});
-grab.addEventListener('pointerup', () => document.body.classList.remove('grabbing'));
 // ponytail: terrain is always on (set in the style below) — no toggle control to turn it off.
 map.on('load', () => {
   map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -747,7 +720,13 @@ $('save').onclick = async () => {
   // inline button feedback instead of a blocking alert — no "Drive"/filename chatter
   const btn = $('save'), label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Saving…';
-  try { await driveUpload(name, 'application/json', b64(JSON.stringify(doc))); btn.textContent = 'Saved ✓'; }
+  // LAST_KEY must be set here too, not just in loadMission: save a freshly uploaded KML
+  // and there is no "last mission" on record, so a refresh restores nothing.
+  try {
+    const file = await driveUpload(name, 'application/json', b64(JSON.stringify(doc)));
+    if (file?.id) localStorage.setItem(LAST_KEY, file.id);
+    btn.textContent = 'Saved ✓';
+  }
   catch { btn.textContent = 'Save failed'; } // never fail silently
   setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 1500);
   refreshMissions(); // the new mission shows up in the list
@@ -912,17 +891,30 @@ function driveScroll() {
   clearTimeout(driveSettle);
   driveSettle = setTimeout(() => { if (zones[driveCur]) driveFrame(true); }, 120); // reframe once it settles
 }
-// driving-mode framing. The camera always frames the polygon — the live position never
-// pulls it, in either POI state. POI only controls whether the dashed line + distance
-// chip to your location are drawn. `force` marks an explicit action (pick a zone, toggle
-// POI, load a mission); a passive GPS tick only refreshes the line, so the frame you're
-// looking at is never yanked away mid-drive.
+// driving-mode framing.
+//   POI on  → frame your live position AND the selected polygon together.
+//   POI off → zoom to the polygon alone, no live position in the bounds.
+// Both go through framePad, so the frame sits above the drum rather than behind it.
+// `force` marks an explicit action (pick a zone, toggle POI, load a mission). On a
+// passive GPS tick the frame is only re-fitted while you're still more than 1.5 km out;
+// inside that it stops tightening, so the view doesn't creep as you close in.
 function driveFrame(force) {
   if (!document.body.classList.contains('driving')) return;
-  if ($('roi').checked) drawRoiLine(); // no-ops into a clear when there's no fix yet
-  else { map.getSource('roibox')?.setData(EMPTY_FC); hideDist(); }
   const z = roiZone; if (!z) return;
-  if (force) framePolygon(z, 500);
+  if (!$('roi').checked) { // POI off → the polygon only
+    map.getSource('roibox')?.setData(EMPTY_FC); hideDist();
+    if (force) framePolygon(z, 500);
+    return;
+  }
+  drawRoiLine(); // no-ops into a clear when there's no fix yet
+  if (!userLoc) { if (force) framePolygon(z, 500); return; } // no fix → polygon alone
+  const a = roiTarget();
+  const km = haversine({ lat: a[1], lng: a[0] }, { lat: userLoc[1], lng: userLoc[0] });
+  if (!force && km <= 1.5) return;
+  const b = new maplibregl.LngLatBounds();
+  b.extend(userLoc); b.extend(a);
+  for (const c of z.feature.geometry.coordinates[0]) b.extend(c);
+  map.fitBounds(b, { padding: framePad(80), maxZoom: 16, pitch: 0, bearing: 0, duration: 500, essential: true });
 }
 let driveAnim;
 function setDriving(on) {

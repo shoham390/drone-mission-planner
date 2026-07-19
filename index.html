@@ -176,13 +176,7 @@
     .gate-card .note { font-size: 12px; margin: 20px 0 0; }
     /* desktop: wrappers are invisible — children flow in the side column as before */
     .sec { display: contents; }
-    #grab { display: none; }                        /* phone-only: drag the map/menu split */
     @media (max-width: 640px) {
-      #grab { display: flex; align-items: center; justify-content: center; flex: none; height: 16px;
-        background: var(--panel); border-top: 1px solid var(--line); touch-action: none; cursor: row-resize; }
-      #grab::before { content: ''; width: 44px; height: 4px; border-radius: 999px; background: var(--glass-hi); }
-      body.grabbing #map { transition: none; }      /* the .45s ease would lag behind the finger */
-      body.driving #grab { display: none; }
       body { flex-direction: column-reverse; }      /* map on top, panel below */
       #map { flex: none; height: var(--maph, 56dvh); min-height: 0;
              transition: height .45s cubic-bezier(.22,.61,.36,1); } /* driving on/off slides the menu */
@@ -260,7 +254,6 @@
       <div id="list"></div>
     </div>
   </div>
-  <div id="grab" aria-label="Drag to resize the map"></div>
   <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div>
     <div id="coordbox"></div>
     <!-- vertex tools: second pill above the bar, shown only while Edit is on -->
