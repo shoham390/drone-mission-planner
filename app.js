@@ -68,7 +68,6 @@ geolocate.on('geolocate', (e) => {
 });
 // POI (was ROI): the top-row toggle and the driving-mode pill share this one path.
 function applyPoi() {
-  syncPoiPill();
   if ($('roi').checked) geolocate.trigger(); // make sure we have a live fix
   if (document.body.classList.contains('driving')) { driveFrame(true); roiNote(); return; }
   if ($('roi').checked) { if (userLoc) frameRoi(900); }
@@ -664,6 +663,9 @@ function render() {
     });
     $('list').appendChild(div);
   });
+  // phone: driving starts at sign-in, before any zones exist, so the drum rebuilds here.
+  // Guarded on .driving so desktop never gets roiZone reassigned behind its back.
+  if (document.body.classList.contains('driving')) resetDrum();
 }
 
 // ---- Google Drive (drive.file scope) ----
@@ -810,7 +812,14 @@ async function loadMission(id, name) {
 // Reuses the POI framing path: picking a zone in the drum sets it as the ROI target
 // and flyToZone frames it (+ live location when POI is on, polygon only when off).
 let driveCur = 0, driveSettle;
-function syncPoiPill() { $('poipill')?.classList.toggle('on', $('roi').checked); }
+// rebuild the drum and centre it on zone `i` — the single path for "zones changed"
+function resetDrum(i = 0) {
+  buildDrum();
+  if (!zones.length) return;
+  setDriveCur(i);
+  $('drivepicker').scrollTop = i * 44; // 44px per row → centre the current zone
+  requestAnimationFrame(drumStyle);
+}
 function buildDrum() {
   const p = $('drivepicker');
   p.innerHTML = '<div class="spacer"></div>' + zones.map((z, i) =>
@@ -884,14 +893,7 @@ function setDriving(on) {
   mapEl.addEventListener('transitionend', done);
   driveAnim = setTimeout(done, 900); // fallback if the transition never fires
   if (!on) return;
-  buildDrum();
   if (!$('roi').checked) $('roi').checked = true; // driving defaults to POI on (zone + live location)
   applyPoi();
-  if (zones.length) {
-    const start = Math.max(0, zones.indexOf(roiZone));
-    setDriveCur(start);
-    $('drivepicker').scrollTop = start * 44; // 44px per row → centre the current zone
-    requestAnimationFrame(drumStyle);
-  }
+  resetDrum(Math.max(0, zones.indexOf(roiZone)));
 }
-$('poipill').onclick = () => { $('roi').checked = !$('roi').checked; applyPoi(); };
