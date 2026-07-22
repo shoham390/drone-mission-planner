@@ -1,6 +1,14 @@
 // Run: node geo.test.mjs
 import assert from 'node:assert/strict';
-import { centroid, haversine, orderByNearestNeighbor, mapsRouteUrl, polygonRings, zoneKml, decodeXml } from './geo.js';
+import { centroid, haversine, orderByNearestNeighbor, mapsRouteUrl, polygonRings, polygonArea, zoneKml, decodeXml } from './geo.js';
+
+// polygonArea: a 0.01°-per-side box near 32°N is ~1.05e6 m² (cos32 ≈ 0.848); winding-agnostic
+{
+  const box = [[34, 32], [34.01, 32], [34.01, 32.01], [34, 32.01], [34, 32]];
+  assert.ok(Math.abs(polygonArea(box) - 1.05e6) < 3e4);
+  assert.equal(polygonArea(box), polygonArea([...box].reverse())); // sign-independent
+  assert.equal(polygonArea([[0, 0], [1, 1]]), 0); // fewer than 3 vertices
+}
 
 // polygonRings: one ring per polygon, ignores non-polygons, recurses collections
 assert.equal(polygonRings({ type: 'MultiPolygon', coordinates: [[[[0, 0]]], [[[1, 1]]]] }).length, 2);

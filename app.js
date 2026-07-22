@@ -5,7 +5,7 @@ import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
 // import geo.js with app.js's own ?v= cache-buster so it never serves stale
 const {
-  centroid, polygonRings, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine, esc,
+  centroid, polygonRings, polygonArea, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine, esc,
 } = await import('./geo.js' + new URL(import.meta.url).search);
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -340,7 +340,7 @@ let noteTimer;
 function roiNote() {
   const n = $('roi-note');
   clearTimeout(noteTimer);
-  if (!($('roi').checked && !roiZone)) { n.style.display = 'none'; return; }
+  if (!($('roi').checked && !roiZone && zones.length)) { n.style.display = 'none'; return; } // no zones yet → nothing to select, no nag
   n.style.display = 'block'; n.style.opacity = '1';
   noteTimer = setTimeout(() => {
     n.style.opacity = '0';
@@ -634,6 +634,9 @@ const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 // write per tick. ponytail: renaming the mission or a zone orphans its mark; fine.
 const markKey = (z) => `mark:${$('mname').value}::${z.name}`;
 
+// polygon surface area, compact: m² up to a km², then km² with two decimals
+const fmtArea = (m2) => m2 >= 1e6 ? `${(m2 / 1e6).toFixed(2)} km²` : `${Math.round(m2).toLocaleString()} m²`;
+
 function render() {
   $('list').innerHTML = '';
   zones.forEach((z, i) => {
@@ -644,7 +647,7 @@ function render() {
     const kml = 'data:application/vnd.google-earth.kml+xml;charset=utf-8,' +
       encodeURIComponent(zoneKml(z.name, z.feature.geometry.coordinates[0]));
     div.innerHTML =
-      `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${esc(z.name)}</b>` +
+      `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${esc(z.name)}<span class="area" title="Surface area">${fmtArea(polygonArea(z.feature.geometry.coordinates[0]))}</span></b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
       `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${esc(z.name)}.kml">${EARTH_ICON}</a>`;

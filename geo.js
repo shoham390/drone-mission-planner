@@ -25,6 +25,20 @@ export function polygonRings(geom) {
   return [];
 }
 
+// Geodesic area of a polygon outer-ring in m². ring: [[lng,lat], ...].
+// Spherical-excess formula (same one Leaflet/Google use) — well under 1% off at
+// drone-zone scale. ponytail: absolute value, so winding direction doesn't matter.
+export function polygonArea(ring) {
+  if (ring.length < 3) return 0;
+  const rad = (d) => (d * Math.PI) / 180, Re = 6378137; // WGS84 equatorial radius, m
+  let s = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length];
+    s += rad(x2 - x1) * (2 + Math.sin(rad(y1)) + Math.sin(rad(y2)));
+  }
+  return Math.abs((s * Re * Re) / 2);
+}
+
 const R = 6371; // km
 export function haversine(a, b) {
   const rad = (d) => (d * Math.PI) / 180;
