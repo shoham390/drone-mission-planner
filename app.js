@@ -599,7 +599,10 @@ function planRoute() {
     el.className = 'num-marker';
     const dot = document.createElement('div');
     dot.className = 'num-icon';
-    dot.textContent = i + 1;
+    // ponytail: center-anchored like the old circle — pin head floats over the
+    // centroid rather than tip-on-point; fine for a label. Add anchor:'bottom' if
+    // the tip must land exactly on the zone.
+    dot.innerHTML = `<svg width="30" height="40" viewBox="0 0 30 40" aria-hidden="true"><path d="M15 39S28 22 28 14A13 13 0 0 0 2 14C2 22 15 39 15 39Z" fill="#08302f" stroke="#22e0e0" stroke-width="2"/><text x="15" y="19" text-anchor="middle" fill="#22e0e0" font-size="13" font-weight="700" font-family="sans-serif">${i + 1}</text></svg>`;
     const tag = document.createElement('div');
     tag.className = 'area-tag';
     tag.textContent = fmtArea(polygonArea(z.feature.geometry.coordinates[0]));
