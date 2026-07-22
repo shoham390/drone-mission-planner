@@ -596,8 +596,14 @@ function planRoute() {
   numberMarkers.forEach((m) => m.remove());
   numberMarkers = zones.map((z, i) => {
     const el = document.createElement('div');
-    el.className = 'num-icon';
-    el.textContent = i + 1;
+    el.className = 'num-marker';
+    const dot = document.createElement('div');
+    dot.className = 'num-icon';
+    dot.textContent = i + 1;
+    const tag = document.createElement('div');
+    tag.className = 'area-tag';
+    tag.textContent = fmtArea(polygonArea(z.feature.geometry.coordinates[0]));
+    el.append(dot, tag);
     return new maplibregl.Marker({ element: el }).setLngLat([z.lng, z.lat]).addTo(map);
   });
   const link = $('routelink');
@@ -634,8 +640,9 @@ const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 // write per tick. ponytail: renaming the mission or a zone orphans its mark; fine.
 const markKey = (z) => `mark:${$('mname').value}::${z.name}`;
 
-// polygon surface area, compact: m² up to a km², then km² with two decimals
-const fmtArea = (m2) => m2 >= 1e6 ? `${(m2 / 1e6).toFixed(2)} km²` : `${Math.round(m2).toLocaleString()} m²`;
+// polygon surface area in km². ponytail: 2dp reads "0.00 km²" below ~0.005 km²;
+// bump decimals only if sub-hectare scan zones become common.
+const fmtArea = (m2) => `${(m2 / 1e6).toFixed(2)} km²`;
 
 function render() {
   $('list').innerHTML = '';
