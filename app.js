@@ -786,10 +786,14 @@ let autoLoaded = false;
 async function autoLoadLast(sel) {
   if (autoLoaded || zones.length) return;
   const id = localStorage.getItem(LAST_KEY);
-  const opt = id && [...sel.options].find((o) => o.value === id);
-  if (!opt) return; // never saved one, or it's since been deleted
-  sel.value = id;
-  await loadMission(id, opt.textContent);
+  // prefer the last mission on the map; if that key is gone (cleared storage, new
+  // device, deleted mission) fall back to the newest saved one — the list is already
+  // ordered modifiedTime desc, so the first real option is the most recent.
+  const opt = (id && [...sel.options].find((o) => o.value === id))
+    || [...sel.options].find((o) => o.value);
+  if (!opt) return; // no saved missions at all
+  sel.value = opt.value;
+  await loadMission(opt.value, opt.textContent);
   // Only stop retrying once it actually worked. Marking this up front meant a first
   // attempt that failed (expired token on a refresh, dropped connection) permanently
   // disabled the restore — the next successful refreshMissions() would skip it.
