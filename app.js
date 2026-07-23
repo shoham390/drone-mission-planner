@@ -610,7 +610,10 @@ function planRoute() {
     tag.className = 'area-tag';
     tag.textContent = fmtArea(polygonArea(z.feature.geometry.coordinates[0]));
     el.append(dot, tag);
-    el.onclick = () => drumTo(i); // driving: tap the pin → drum jumps to this zone
+    el.onclick = () => { // driving: tap the pin → drum jumps to this zone; hop for tap feedback
+      drumTo(i);
+      dot.classList.remove('hop'); void dot.offsetWidth; dot.classList.add('hop'); // restart the anim each tap
+    };
     return new maplibregl.Marker({ element: el }).setLngLat([z.lng, z.lat]).addTo(map);
   });
   const link = $('routelink');
