@@ -882,8 +882,17 @@ async function loadMission(id, name) {
 // Picking a zone in the drum sets it as the ROI target; driveFrame() then frames that
 // polygon. The live position is never part of the camera bounds — see driveFrame.
 let driveCur = 0, driveSettle;
-// map tap → drum. Scrolling fires driveScroll, which sets the zone + reframes.
-function drumTo(i) { if (document.body.classList.contains('driving') && zones[i]) $('drivepicker').scrollTop = i * 44; }
+// map tap → drum. Scrolling fires driveScroll, which selects the zone. The tap
+// only selects — the reframe/zoom is suppressed (drumTapNoZoom); only physically
+// spinning the drum zooms.
+let drumTapNoZoom = false;
+function drumTo(i) {
+  if (!(document.body.classList.contains('driving') && zones[i])) return;
+  const p = $('drivepicker'), top = i * 44;
+  if (Math.round(p.scrollTop) === top) return; // already there → no scroll fires, don't arm the flag
+  drumTapNoZoom = true;
+  p.scrollTop = top;
+}
 // rebuild the drum and centre it on zone `i` — the single path for "zones changed"
 function resetDrum(i = 0) {
   buildDrum();
@@ -928,7 +937,10 @@ function driveScroll() {
   const i = drumStyle();
   if (i !== driveCur) setDriveCur(i);
   clearTimeout(driveSettle);
-  driveSettle = setTimeout(() => { if (zones[driveCur]) driveFrame(true); }, 120); // reframe once it settles
+  driveSettle = setTimeout(() => {
+    if (drumTapNoZoom) { drumTapNoZoom = false; return; } // tap moved the drum → select only, don't zoom
+    if (zones[driveCur]) driveFrame(true);
+  }, 120); // reframe once it settles
 }
 // driving-mode framing.
 //   POI on  → frame your live position AND the selected polygon together.
