@@ -892,7 +892,7 @@ function drumTo(i) {
   drumFrozen = true; // freeze the camera until the user scrolls the drum
   if (Math.round(p.scrollTop) === top) { setDriveCur(i); return; } // already centred → no scroll fires, select now
   progScroll = true; // the scroll we're about to cause is ours, not the user's finger
-  p.scrollTop = top;
+  p.scrollTo({ top, behavior: 'smooth' }); // roll the drum to the tapped zone instead of snapping
 }
 // rebuild the drum and centre it on zone `i` — the single path for "zones changed"
 function resetDrum(i = 0) {
