@@ -62,7 +62,7 @@ map.addControl(geolocate, 'top-left');
 let userLoc = null, roiZone = null; // roiZone = target framed by ROI, re-fit as you move
 geolocate.on('geolocate', (e) => {
   userLoc = [e.coords.longitude, e.coords.latitude];
-  if (document.body.classList.contains('driving')) return driveFrame(false); // driving has its own follow rules
+  if (document.body.classList.contains('driving')) { if (drumFrozen) return; return driveFrame(false); } // frozen by a map tap → don't follow until the user scrolls
   if (!$('roi').checked) return;
   frameRoi(500); // tracks the ping-or-polygon target; falls back to fit-all when neither
 });
@@ -882,15 +882,16 @@ async function loadMission(id, name) {
 // Picking a zone in the drum sets it as the ROI target; driveFrame() then frames that
 // polygon. The live position is never part of the camera bounds — see driveFrame.
 let driveCur = 0, driveSettle;
-// map tap → drum. Scrolling fires driveScroll, which selects the zone. The tap
-// only selects — the reframe/zoom is suppressed (drumTapNoZoom); only physically
-// spinning the drum zooms.
-let drumTapNoZoom = false;
+// map tap → drum. A tap only SELECTS: it moves the drum + updates roiZone, but freezes
+// the camera (drumFrozen) so neither the scroll settle NOR the GPS follow (line ~65)
+// zooms. Only physically spinning the drum unfreezes and zooms — see driveFrame.
+let drumFrozen = false, progScroll = false;
 function drumTo(i) {
   if (!(document.body.classList.contains('driving') && zones[i])) return;
   const p = $('drivepicker'), top = i * 44;
-  if (Math.round(p.scrollTop) === top) return; // already there → no scroll fires, don't arm the flag
-  drumTapNoZoom = true;
+  drumFrozen = true; // freeze the camera until the user scrolls the drum
+  if (Math.round(p.scrollTop) === top) { setDriveCur(i); return; } // already centred → no scroll fires, select now
+  progScroll = true; // the scroll we're about to cause is ours, not the user's finger
   p.scrollTop = top;
 }
 // rebuild the drum and centre it on zone `i` — the single path for "zones changed"
@@ -938,8 +939,8 @@ function driveScroll() {
   if (i !== driveCur) setDriveCur(i);
   clearTimeout(driveSettle);
   driveSettle = setTimeout(() => {
-    if (drumTapNoZoom) { drumTapNoZoom = false; return; } // tap moved the drum → select only, don't zoom
-    if (zones[driveCur]) driveFrame(true);
+    if (progScroll) { progScroll = false; return; } // our tap-scroll → select only, stay frozen
+    if (zones[driveCur]) driveFrame(true); // a real finger-scroll → zoom (driveFrame clears drumFrozen)
   }, 120); // reframe once it settles
 }
 // driving-mode framing.
@@ -951,6 +952,7 @@ function driveScroll() {
 // inside that it stops tightening, so the view doesn't creep as you close in.
 function driveFrame(force) {
   if (!document.body.classList.contains('driving')) return;
+  if (force) drumFrozen = false; // any explicit frame (finger-scroll, POI toggle, load) thaws the tap-freeze
   const z = roiZone; if (!z) return;
   if (!$('roi').checked) { // POI off → the polygon only
     map.getSource('roibox')?.setData(EMPTY_FC); hideDist();
