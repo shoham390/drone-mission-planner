@@ -224,6 +224,9 @@ function resetPolys() {
 }
 // click a polygon (while editing) to make it the one being edited
 map.on('click', 'zones-fill', (e) => {
+  if (document.body.classList.contains('driving')) {
+    return drumTo(zones.findIndex((z) => z.id === e.features[0].properties.id));
+  }
   if (!editMode) return;
   if (map.queryRenderedFeatures(e.point, { layers: ['verts-hit'] }).length) return; // tapped a handle, not the polygon
   const zi = zones.findIndex((z) => z.id === e.features[0].properties.id);
@@ -607,6 +610,7 @@ function planRoute() {
     tag.className = 'area-tag';
     tag.textContent = fmtArea(polygonArea(z.feature.geometry.coordinates[0]));
     el.append(dot, tag);
+    el.onclick = () => drumTo(i); // driving: tap the pin → drum jumps to this zone
     return new maplibregl.Marker({ element: el }).setLngLat([z.lng, z.lat]).addTo(map);
   });
   const link = $('routelink');
@@ -878,6 +882,8 @@ async function loadMission(id, name) {
 // Picking a zone in the drum sets it as the ROI target; driveFrame() then frames that
 // polygon. The live position is never part of the camera bounds — see driveFrame.
 let driveCur = 0, driveSettle;
+// map tap → drum. Scrolling fires driveScroll, which sets the zone + reframes.
+function drumTo(i) { if (document.body.classList.contains('driving') && zones[i]) $('drivepicker').scrollTop = i * 44; }
 // rebuild the drum and centre it on zone `i` — the single path for "zones changed"
 function resetDrum(i = 0) {
   buildDrum();
