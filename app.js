@@ -225,7 +225,7 @@ function resetPolys() {
 // click a polygon (while editing) to make it the one being edited
 map.on('click', 'zones-fill', (e) => {
   if (document.body.classList.contains('driving')) {
-    return drumTo(zones.findIndex((z) => z.id === e.features[0].properties.id));
+    return drumTo(zones.findIndex((z) => z.id === e.features[0].properties.id)); // press polygon → roll drum + zoom
   }
   if (!editMode) return;
   if (map.queryRenderedFeatures(e.point, { layers: ['verts-hit'] }).length) return; // tapped a handle, not the polygon
@@ -610,10 +610,7 @@ function planRoute() {
     tag.className = 'area-tag';
     tag.textContent = fmtArea(polygonArea(z.feature.geometry.coordinates[0]));
     el.append(dot, tag);
-    el.onclick = () => { // driving: tap the pin → drum jumps to this zone; hop for tap feedback
-      drumTo(i);
-      dot.classList.remove('hop'); void dot.offsetWidth; dot.classList.add('hop'); // restart the anim each tap
-    };
+    el.onclick = () => drumTo(i); // press the pin on the map → roll the drum + zoom to this polygon
     return new maplibregl.Marker({ element: el }).setLngLat([z.lng, z.lat]).addTo(map);
   });
   const link = $('routelink');
@@ -885,17 +882,22 @@ async function loadMission(id, name) {
 // Picking a zone in the drum sets it as the ROI target; driveFrame() then frames that
 // polygon. The live position is never part of the camera bounds — see driveFrame.
 let driveCur = 0, driveSettle;
-// map tap → drum. A tap only SELECTS: it moves the drum + updates roiZone, but freezes
-// the camera (drumFrozen) so neither the scroll settle NOR the GPS follow (line ~65)
-// zooms. Only physically spinning the drum unfreezes and zooms — see driveFrame.
+// Two gestures, opposite jobs. Pressing a polygon/pin ON THE MAP (drumTo) rolls the drum
+// to it AND zooms to the polygon. Spinning the drum only BROWSES: it selects + hops the
+// pin, freezes the camera (drumFrozen) and never zooms — see driveScroll.
 let drumFrozen = false, progScroll = false;
-function drumTo(i) {
+function drumTo(i) { // map press: select the zone, roll the drum to it, and zoom to the polygon
   if (!(document.body.classList.contains('driving') && zones[i])) return;
   const p = $('drivepicker'), top = i * 44;
-  drumFrozen = true; // freeze the camera until the user scrolls the drum
-  if (Math.round(p.scrollTop) === top) { setDriveCur(i); return; } // already centred → no scroll fires, select now
-  progScroll = true; // the scroll we're about to cause is ours, not the user's finger
-  p.scrollTo({ top, behavior: 'smooth' }); // roll the drum to the tapped zone instead of snapping
+  setDriveCur(i);
+  if (Math.round(p.scrollTop) !== top) { progScroll = true; p.scrollTo({ top, behavior: 'smooth' }); } // roll the drum, our scroll not a finger
+  driveFrame(true); // zoom to the polygon (clears drumFrozen)
+}
+// restart the hop animation on zone i's map pin (drum-browse feedback; no-op if the pin isn't drawn)
+function hopPin(i) {
+  const dot = numberMarkers[i]?.getElement().querySelector('.num-icon');
+  if (!dot) return;
+  dot.classList.remove('hop'); void dot.offsetWidth; dot.classList.add('hop');
 }
 // rebuild the drum and centre it on zone `i` — the single path for "zones changed"
 function resetDrum(i = 0) {
@@ -942,9 +944,9 @@ function driveScroll() {
   if (i !== driveCur) setDriveCur(i);
   clearTimeout(driveSettle);
   driveSettle = setTimeout(() => {
-    if (progScroll) { progScroll = false; return; } // our tap-scroll → select only, stay frozen
-    if (zones[driveCur]) driveFrame(true); // a real finger-scroll → zoom (driveFrame clears drumFrozen)
-  }, 120); // reframe once it settles
+    if (progScroll) { progScroll = false; return; } // our own roll from a map press → zoom already fired
+    if (zones[driveCur]) { drumFrozen = true; hopPin(driveCur); } // finger spin → browse: hop the pin, no zoom
+  }, 120); // hop once it settles
 }
 // driving-mode framing.
 //   POI on  → frame your live position AND the selected polygon together.
