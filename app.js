@@ -921,7 +921,15 @@ function buildDrum() {
     `<div class="opt" data-i="${i}"><span class="on">${esc(z.name)}</span><span class="oi">${i + 1}</span></div>`).join('') +
     '<div class="spacer"></div>';
   p.onscroll = driveScroll;
-  p.ondblclick = (e) => { const o = e.target.closest('.opt'); if (o) drumTo(+o.dataset.i); }; // double-tap a row → jump to that polygon
+  // double-tap a row → jump to that polygon. Manual detection, not ondblclick: on a
+  // touch scroll-snap container dblclick doesn't fire — the taps go to the scroller.
+  let lastTap = 0, lastI = -1;
+  p.onclick = (e) => {
+    const o = e.target.closest('.opt'); if (!o) return;
+    const i = +o.dataset.i, now = Date.now();
+    if (i === lastI && now - lastTap < 400) { lastTap = 0; drumTo(i); }
+    else { lastTap = now; lastI = i; }
+  };
 }
 // drum look: fade + tilt each row by its distance from centre; return the centred index
 function drumStyle() {
