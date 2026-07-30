@@ -774,7 +774,11 @@ async function refreshMissions() {
     'https://www.googleapis.com/drive/v3/files?pageSize=100&orderBy=modifiedTime desc&q=trashed%3Dfalse&fields=files(id,name)');
   if (!r.ok) return alert("Couldn't load your saved missions — try again.");
   const { files = [] } = await r.json();
-  const missions = files.filter((f) => f.name.endsWith('.mission.json'));
+  // sort by mission date (name is YYYY-MM-DD), newest first — not by modifiedTime,
+  // so re-saving an old mission doesn't float it to the top. ponytail: non-date names
+  // fall back to plain lexical order, which is fine.
+  const missions = files.filter((f) => f.name.endsWith('.mission.json'))
+    .sort((a, b) => b.name.localeCompare(a.name));
   const sel = $('missions');
   sel.style.display = $('delmission').style.display = missions.length ? 'inline' : 'none';
   $('loadslot').style.opacity = missions.length ? '' : '.35'; // phone: don't show a dead icon
@@ -792,7 +796,7 @@ async function autoLoadLast(sel) {
   const id = localStorage.getItem(LAST_KEY);
   // prefer the last mission on the map; if that key is gone (cleared storage, new
   // device, deleted mission) fall back to the newest saved one — the list is already
-  // ordered modifiedTime desc, so the first real option is the most recent.
+  // ordered by date desc, so the first real option is the most recent.
   const opt = (id && [...sel.options].find((o) => o.value === id))
     || [...sel.options].find((o) => o.value);
   if (!opt) return; // no saved missions at all
@@ -917,6 +921,7 @@ function buildDrum() {
     `<div class="opt" data-i="${i}"><span class="on">${esc(z.name)}</span><span class="oi">${i + 1}</span></div>`).join('') +
     '<div class="spacer"></div>';
   p.onscroll = driveScroll;
+  p.ondblclick = (e) => { const o = e.target.closest('.opt'); if (o) drumTo(+o.dataset.i); }; // double-tap a row → jump to that polygon
 }
 // drum look: fade + tilt each row by its distance from centre; return the centred index
 function drumStyle() {
