@@ -492,7 +492,9 @@ function planRoute() {
 }
 
 // ---- flight settings: one editable box for the focused polygon, toggled from the bar ----
-const selectedZone = () => zones.find((z) => z.id === focusedId);
+// the list/map focus, or — while driving — whatever the drum is centred on
+const selectedZone = () => zones.find((z) => z.id === focusedId) ||
+  (document.body.classList.contains('driving') ? zones[driveCur] : undefined);
 function refreshFlight() {
   if ($('flightctrls').style.display === 'none') return; // only bother while the panel is open
   const z = selectedZone(), box = $('flightset');
@@ -840,6 +842,7 @@ function setDriveCur(i) {
   roiZone = z; // so a POI toggle frames the right zone
   $('drivemaps').href = mapsNavUrl(z.lat, z.lng);
   $('drivewaze').href = wazeNavUrl(z.lat, z.lng);
+  refreshFlight(); // an open flight panel follows the drum
 }
 function driveScroll() {
   const i = drumStyle();

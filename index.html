@@ -104,12 +104,12 @@
     .mission-row .pick { flex: 1; min-width: 0; text-align: left; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     .mission-row .del { flex: none; color: #ff9f97; }
-    body.driving #flightctrls { display: none; }
-    /* flight-settings panel above the bar, shown while Settings is on */
-    #flightctrls { position: absolute; left: 10px; bottom: 68px; z-index: 6;
+    /* flight-settings panel, top-right of the map so it clears the zoom controls
+       (top-left) and the tool bar / driving drum (bottom). Shown while Settings is on. */
+    #flightctrls { position: absolute; top: 10px; right: 10px; z-index: 7;
       width: 320px; max-width: calc(100% - 20px);
       display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px;
-      background: rgba(6,13,17,.82); border: 1px solid var(--glass-hi);
+      background: rgba(6,13,17,.9); border: 1px solid var(--glass-hi);
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
     #flightname { padding: 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
     /* ROI distance chip: solid dark background, colored text+border (currentColor set in JS) */
