@@ -637,7 +637,9 @@ const driveUploadBlob = async (file) =>
 $('save').onclick = async () => {
   if (!zones.length) return alert('Nothing to save.');
   const name = ($('mname').value.trim() || 'mission') + '.mission.json';
-  const doc = { name, zones: zones.map((z, i) => ({ order: i + 1, name: z.name, feature: z.feature })) };
+  // flight settings ride along inside the mission so they sync via Drive to every device,
+  // instead of living only in the localStorage of the browser that entered them.
+  const doc = { name, zones: zones.map((z, i) => ({ order: i + 1, name: z.name, feature: z.feature, flight: localStorage.getItem(flightKey(z)) || '' })) };
   // inline button feedback instead of a blocking alert — no "Drive"/filename chatter
   const btn = $('save'), label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -771,6 +773,12 @@ async function loadMission(id, name) {
   numberMarkers.forEach((m) => m.remove());
   zones = []; numberMarkers = [];
   addZonesFromGeoJSON({ features: doc.zones.map((z) => z.feature) }); // plans the route itself
+  // restore per-zone flight settings baked into the mission (paired by zone name, so the
+  // nearest-neighbor re-order on load can't mismatch them) into localStorage, where the
+  // flight-settings box reads them — this is what makes them show on a fresh device.
+  const flights = Object.fromEntries((doc.zones || []).filter((z) => z.flight).map((z) => [z.name, z.flight]));
+  for (const z of zones) if (flights[z.name]) localStorage.setItem(`flight:${$('mname').value}::${z.name}`, flights[z.name]);
+  refreshFlight();
 }
 
 // ---- driving mode (mobile): frameless overlay, iOS-style drum picker ----
