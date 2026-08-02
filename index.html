@@ -70,9 +70,9 @@
       background: #fff; border-radius: 50%; transition: .15s; }
     .switch input:checked + .slider { background: var(--blue); }
     .switch input:checked + .slider::before { transform: translateX(20px); }
-    /* ---- map tool bar: frosted pill over the map (Fit / POI / Edit / Clear + driving) ----
-       Hidden checkbox holds toggle state, the label is the button — same trick the old
-       .tbtn row used, so #roi and #editverts keep their existing onchange handlers. */
+    /* ---- map tool bar: frosted pill over the map (Fit / POI / Settings / Clear + driving) ----
+       POI is a hidden checkbox + label (the label is the button); Settings is a plain
+       button toggling the flight panel. */
     #mapbar { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 6;
       display: flex; align-items: center; justify-content: center; gap: 4px; padding: 5px; border-radius: 999px;
       background: rgba(6,13,17,.72); border: 1px solid var(--glass-hi);
@@ -104,15 +104,14 @@
     .mission-row .pick { flex: 1; min-width: 0; text-align: left; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     .mission-row .del { flex: none; color: #ff9f97; }
-    body.driving #editctrls { display: none; }
-    /* vertex tools: second pill, stacked directly above the bar */
-    #editctrls { position: absolute; left: 10px; bottom: 68px; z-index: 6;
-      width: max-content; max-width: calc(100% - 20px);
-      display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
-      background: rgba(6,13,17,.72); border: 1px solid var(--glass-hi);
+    body.driving #flightctrls { display: none; }
+    /* flight-settings panel above the bar, shown while Settings is on */
+    #flightctrls { position: absolute; left: 10px; bottom: 68px; z-index: 6;
+      width: 320px; max-width: calc(100% - 20px);
+      display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px;
+      background: rgba(6,13,17,.82); border: 1px solid var(--glass-hi);
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-    #editnote { padding: 0 12px; font-size: 12px; color: var(--muted); }
-    #edittools { display: flex; align-items: center; gap: 4px; }
+    #flightname { padding: 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
     /* ROI distance chip: solid dark background, colored text+border (currentColor set in JS) */
     .dist-chip { padding: 3px 9px; border-radius: 8px; background: #04070a; border: 1px solid currentColor;
                  font-size: 13px; font-weight: 700; white-space: nowrap; pointer-events: none; box-shadow: var(--glow); }
@@ -130,10 +129,10 @@
     .zone .area { margin-left: auto; flex: none; font-size: 11px; font-weight: 600; color: var(--muted); }
     .zone a { font-size: 12px; color: var(--blue); text-decoration: none; margin-right: 10px; }
     .zone a:hover { text-decoration: underline; }
-    .flightbox { display: none; width: 100%; margin-top: 8px; box-sizing: border-box; resize: vertical;
-      min-height: 72px; padding: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: #e6f2f5;
+    .flightbox { width: 100%; box-sizing: border-box; resize: vertical; min-height: 96px; padding: 8px;
+      font: 12px/1.4 ui-monospace, Menlo, monospace; color: #e6f2f5;
       background: rgba(4,7,10,.6); border: 1px solid var(--glass-hi); border-radius: 8px; }
-    .flightbox.open { display: block; }
+    .flightbox:disabled { opacity: .5; }
     .num { display: inline-flex; width: 22px; height: 22px; flex: none; align-items: center;
            justify-content: center; background: var(--accent); color: #1f2937; border-radius: 50%;
            font-size: 12px; font-weight: 700; }
@@ -265,16 +264,10 @@
   </div>
   <div id="map"><div id="roi-note" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5; background:#04070aee; color:#00e5ff; border:1px solid #00e5ff; border-radius:8px; padding:12px 20px; font-size:16px; pointer-events:none; transition:opacity .4s">Please select a polygon</div>
     <div id="coordbox"></div>
-    <!-- vertex tools: second pill above the bar, shown only while Edit is on -->
-    <div id="editctrls" style="display:none">
-      <div id="editnote" style="display:none">Select a polygon</div>
-      <div id="edittools" style="display:none">
-        <button id="vadd" class="mapbtn" title="Add vertex" aria-label="Add vertex"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button id="vdel" class="mapbtn" title="Remove vertex" aria-label="Remove vertex"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-        <button id="vreset" class="mapbtn" title="Reset polygon" aria-label="Reset polygon"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
-        <input type="checkbox" id="origtoggle" class="mb-cb" checked hidden />
-        <label class="mapbtn" for="origtoggle" title="Show original outline" aria-label="Show original outline"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></label>
-      </div>
+    <!-- flight settings for the focused polygon; shown while Settings is on -->
+    <div id="flightctrls" style="display:none">
+      <div id="flightname">Select a polygon</div>
+      <textarea id="flightset" class="flightbox" placeholder="Flight settings — altitude, speed, overlap, notes…" disabled></textarea>
     </div>
     <!-- map tool bar: Upload / Load / Save (phone only) + Fit / POI / Edit / Clear -->
     <div id="mapbar">
@@ -284,8 +277,7 @@
       <button id="fit" class="mapbtn" title="Fit all zones" aria-label="Fit all zones"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <input type="checkbox" id="roi" class="mb-cb" hidden />
       <label class="mapbtn" for="roi" title="POI — frame live location with the target" aria-label="POI"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></label>
-      <input type="checkbox" id="editverts" class="mb-cb" hidden />
-      <label class="mapbtn" for="editverts" title="Edit polygon vertices" aria-label="Edit polygon vertices"><svg viewBox="0 0 24 24"><path d="M12 4.5 18.5 9.5 16 18 8 18 5.5 9.5Z"/><rect x="10.4" y="2.9" width="3.2" height="3.2" fill="currentColor" stroke="none"/><rect x="16.9" y="7.9" width="3.2" height="3.2" fill="currentColor" stroke="none"/><rect x="14.4" y="16.4" width="3.2" height="3.2" fill="currentColor" stroke="none"/><rect x="6.4" y="16.4" width="3.2" height="3.2" fill="currentColor" stroke="none"/><rect x="3.9" y="7.9" width="3.2" height="3.2" fill="currentColor" stroke="none"/></svg></label>
+      <button id="flightbtn" class="mapbtn" title="Flight settings" aria-label="Flight settings"><svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h7M15 18h5"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg></button>
       <button id="clear" class="mapbtn danger" title="Clear all zones" aria-label="Clear all zones"><svg viewBox="0 0 24 24"><path d="M20 4 10.6 12.4"/><path d="M9.4 11.4 12.6 14.6 11 18.7 5.3 13Z"/><path d="M11 13 8.2 15.8"/></svg></button>
     </div>
     <div id="driveoverlay">

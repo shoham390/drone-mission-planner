@@ -106,25 +106,11 @@ map.on('load', () => {
     paint: { 'fill-color': '#22e0e0', 'fill-opacity': 0.18 } });
   map.addLayer({ id: 'zones-line', type: 'line', source: 'zones',
     paint: { 'line-color': '#22e0e0', 'line-width': 2 } });
-  // dashed ghost of the as-loaded shape, drawn only for polygons that were edited
-  map.addSource('orig', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  map.addLayer({ id: 'orig-line', type: 'line', source: 'orig',
-    paint: { 'line-color': '#ff9800', 'line-width': 1.5, 'line-dasharray': [2, 2] } }, 'zones-line');
   // ROI: dashed line target→you. The distance chip is a DOM marker (see showDist),
   // not a symbol layer — symbols flicker/re-fade on every location update.
   map.addSource('roibox', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'roibox-line', type: 'line', source: 'roibox',
     paint: { 'line-color': '#00e5ff', 'line-width': 2, 'line-dasharray': [3, 2] } });
-  // draggable vertex handles (hidden until "Edit vertices" is on)
-  map.addSource('verts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  map.addLayer({ id: 'verts', type: 'circle', source: 'verts', // empty source when not editing = no handles drawn
-    paint: { 'circle-radius': ['case', ['get', 'sel'], 8, 6],
-      'circle-color': ['case', ['get', 'sel'], '#ff3d7f', '#00e5ff'],
-      'circle-stroke-width': 2, 'circle-stroke-color': '#04070a' } });
-  // near-invisible fat circle on top = a finger-sized hit target, so grabbing a
-  // handle on a phone isn't hit-or-miss against a 6px dot
-  map.addLayer({ id: 'verts-hit', type: 'circle', source: 'verts',
-    paint: { 'circle-radius': 22, 'circle-color': '#000', 'circle-opacity': 0.01 } });
   drawZones(); // zones may have loaded before the style was ready
 });
 
@@ -134,134 +120,21 @@ const $ = (id) => document.getElementById(id);
 // listener — this no-op enables it globally, incl. the dynamic .zone boxes.
 document.addEventListener('touchstart', () => {}, { passive: true });
 
-// push current zones into the map source (+ the editable vertex handles)
+// push current zones into the map source
 function drawZones() {
   const src = map.getSource('zones');
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
-  drawVerts();
-  drawOrig();
-}
-// a zone is "edited" once its current ring differs from the snapshot taken on first touch
-let showOrig = true;
-const isEdited = (z) => z.origRing && JSON.stringify(z.feature.geometry.coordinates[0]) !== JSON.stringify(z.origRing);
-function drawOrig() {
-  const feats = showOrig ? zones.filter(isEdited).map((z) => (
-    { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [z.origRing] } })) : [];
-  map.getSource('orig')?.setData({ type: 'FeatureCollection', features: feats });
-}
-function drawVerts() {
-  map.getSource('verts')?.setData(editMode ? vertFeatures() : { type: 'FeatureCollection', features: [] });
 }
 
-// ---- polygon editing: pick ONE polygon, then drag/add/remove/reset its corners ----
-// KML rings are closed (last coord == first), so we render one handle per unique
-// corner and, when the first moves/goes, keep the closing copy in step.
-// Click a polygon to select it (its handles appear); tap a handle to select it
-// (turns pink); Add inserts after it, Remove deletes it.
-let editMode = false, dragVert = null, selVert = null, selZone = null; // selZone = index of the polygon being edited
-const ringClosed = (r) => r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1];
-const uniqCount = (r) => (ringClosed(r) ? r.length - 1 : r.length);
-const isSel = (zi, vi) => !!selVert && selVert.zi === zi && selVert.vi === vi;
-// snapshot the as-loaded ring the first time a zone is touched, so Reset can restore it
-const ensureOrig = (z) => { if (!z.origRing) z.origRing = z.feature.geometry.coordinates[0].map((c) => c.slice()); };
-function vertFeatures() {
-  const fs = [];
-  const zi = selZone; // handles only for the selected polygon
-  if (zi == null || !zones[zi]) return { type: 'FeatureCollection', features: fs };
-  const ring = zones[zi].feature.geometry.coordinates[0];
-  for (let vi = 0; vi < uniqCount(ring); vi++)
-    fs.push({ type: 'Feature', properties: { zi, vi, sel: isSel(zi, vi) }, geometry: { type: 'Point', coordinates: ring[vi] } });
-  return { type: 'FeatureCollection', features: fs };
-}
-function setEdit(on) {
-  editMode = on;
-  if (on) { if (selZone == null || !zones[selZone]) selZone = zones.length ? 0 : null; } // show handles right away
-  else { selVert = null; selZone = null; }
-  $('editctrls').style.display = on ? '' : 'none';
-  updateEditUI();
-  drawVerts();
-}
-// show "select a polygon" until one is picked, then reveal the vertex tools
-function updateEditUI() {
-  const has = editMode && selZone != null && zones[selZone];
-  $('editnote').style.display = editMode && !has ? '' : 'none';
-  $('edittools').style.display = has ? '' : 'none';
-}
-function selectZone(zi) {
-  selZone = zi; selVert = null;
-  updateEditUI();
-  drawVerts();
-}
-// insert a new vertex at the midpoint of the edge after the selected corner
-function addVert() {
-  if (!selVert) return;
-  const z = zones[selVert.zi]; ensureOrig(z);
-  const ring = z.feature.geometry.coordinates[0];
-  const n = uniqCount(ring);
-  const a = ring[selVert.vi], b = ring[(selVert.vi + 1) % n];
-  ring.splice(selVert.vi + 1, 0, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
-  selVert = { zi: selVert.zi, vi: selVert.vi + 1 };
-  drawZones();
-}
-// delete the selected corner (never below a triangle); re-close if the first went
-function removeVert() {
-  if (!selVert) return;
-  const z = zones[selVert.zi]; ensureOrig(z);
-  const ring = z.feature.geometry.coordinates[0];
-  if (uniqCount(ring) <= 3) return;
-  const vi = selVert.vi;
-  if (ringClosed(ring) && vi === 0) { ring.splice(0, 1); ring[ring.length - 1] = ring[0].slice(); }
-  else ring.splice(vi, 1);
-  selVert = { zi: selVert.zi, vi: Math.max(0, vi - 1) };
-  drawZones();
-}
-// restore the selected polygon to the shape it had when loaded
-function resetPolys() {
-  const z = zones[selZone];
-  if (z && z.origRing) z.feature.geometry.coordinates[0] = z.origRing.map((c) => c.slice());
-  selVert = null;
-  drawZones();
-}
-// click a polygon (while editing) to make it the one being edited
+// click a polygon on the map: drum-select while driving, otherwise focus it so the
+// Flight-settings button shows this one's box.
 map.on('click', 'zones-fill', (e) => {
-  if (document.body.classList.contains('driving')) {
-    return drumTo(zones.findIndex((z) => z.id === e.features[0].properties.id)); // press polygon → roll drum + zoom
-  }
-  if (!editMode) return;
-  if (map.queryRenderedFeatures(e.point, { layers: ['verts-hit'] }).length) return; // tapped a handle, not the polygon
-  const zi = zones.findIndex((z) => z.id === e.features[0].properties.id);
-  if (zi >= 0) selectZone(zi);
+  const id = e.features[0].properties.id;
+  if (document.body.classList.contains('driving'))
+    return drumTo(zones.findIndex((z) => z.id === id)); // press polygon → roll drum + zoom
+  const z = zones.find((z) => z.id === id);
+  if (z) { focusedId = z.id; flyToZone(z); refreshFlight(); }
 });
-// grab a handle (mouse OR touch). preventDefault() is what stops the map from
-// panning under the finger — without the touch* bindings, a drag panned the map.
-function grabVert(e) {
-  if (e.points && e.points.length > 1) return; // second finger = let the map pinch/rotate
-  e.preventDefault();
-  dragVert = e.features[0].properties;
-  selVert = { zi: dragVert.zi, vi: dragVert.vi }; // touching a handle selects it
-  cancelPress();               // don't let the long-press pin fire on a grab
-  drawVerts();
-  map.getCanvas().style.cursor = 'grabbing';
-}
-function moveVert(e) {
-  if (!dragVert) return;
-  const z = zones[dragVert.zi]; ensureOrig(z);
-  const ring = z.feature.geometry.coordinates[0];
-  const p = [e.lngLat.lng, e.lngLat.lat];
-  const wasClosed = ringClosed(ring); // check before mutating — moving v0 would otherwise "open" it
-  ring[dragVert.vi] = p;
-  if (dragVert.vi === 0 && wasClosed) ring[ring.length - 1] = p;
-  drawZones();
-}
-const endVert = () => { if (dragVert) { dragVert = null; map.getCanvas().style.cursor = ''; } };
-map.on('mousedown', 'verts-hit', grabVert);
-map.on('touchstart', 'verts-hit', grabVert);
-map.on('mousemove', moveVert);
-map.on('touchmove', moveVert);
-map.on('mouseup', endVert);
-map.on('touchend', endVert);
-map.on('mouseenter', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.cursor = 'grab'; });
-map.on('mouseleave', 'verts-hit', () => { if (!dragVert) map.getCanvas().style.cursor = ''; });
 // frame a single zone's polygon (used when its list row is tapped): fly in
 // flat and north-up, no tilt or bearing swing. Double-click the compass to reset.
 // ponytail: one flyTo, not a fitBounds+timer chain — the timer let the move
@@ -416,7 +289,6 @@ function dropPin(lngLat) {
 let pressTimer, pressPt, justDropped = false;
 const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
 const startPress = (e) => {
-  if (dragVert) return;                                                                    // grabbing a polygon vertex
   if (e.originalEvent.touches && e.originalEvent.touches.length > 1) return cancelPress(); // multi-touch = navigation
   if (e.originalEvent.target.closest('.maplibregl-marker')) return;                        // grabbing the pin
   justDropped = false;
@@ -619,11 +491,25 @@ function planRoute() {
   render();
 }
 
-$('editverts').onchange = (e) => setEdit(e.target.checked);
-$('origtoggle').onchange = (e) => { showOrig = e.target.checked; drawOrig(); };
-$('vadd').onclick = addVert;
-$('vdel').onclick = removeVert;
-$('vreset').onclick = resetPolys;
+// ---- flight settings: one editable box for the focused polygon, toggled from the bar ----
+const selectedZone = () => zones.find((z) => z.id === focusedId);
+function refreshFlight() {
+  if ($('flightctrls').style.display === 'none') return; // only bother while the panel is open
+  const z = selectedZone(), box = $('flightset');
+  $('flightname').textContent = z ? z.name : 'Select a polygon';
+  box.disabled = !z;
+  box.value = z ? (localStorage.getItem(flightKey(z)) || '') : '';
+}
+$('flightbtn').onclick = () => {
+  const p = $('flightctrls');
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+  refreshFlight();
+};
+$('flightset').oninput = () => {
+  const z = selectedZone(); if (!z) return;
+  const v = $('flightset').value;
+  if (v) localStorage.setItem(flightKey(z), v); else localStorage.removeItem(flightKey(z));
+};
 
 // wipe all loaded zones (in-memory only; saved missions & Drive files are untouched)
 $('clear').onclick = () => {
@@ -641,7 +527,6 @@ $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY
 const MAPS_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
 const WAZE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
 const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34a853" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>';
-const FLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="#8ecdf0" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L11 19v-5.5z"/></svg>';
 
 // per-polygon "mission complete" marks, persisted in localStorage so they survive
 // leaving/closing the app. Keyed by mission name + zone name — no backend, no Drive
@@ -668,13 +553,7 @@ function render() {
       `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${esc(z.name)}<span class="area" title="Surface area">${fmtArea(polygonArea(z.feature.geometry.coordinates[0]))}</span></b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
-      `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${esc(z.name)}.kml">${EARTH_ICON}</a>` +
-      `<button type="button" class="navico flightbtn" title="Flight settings">${FLIGHT_ICON}</button>` +
-      `<textarea class="flightbox" placeholder="Flight settings — altitude, speed, overlap, notes…">${esc(localStorage.getItem(flightKey(z)) || '')}</textarea>`;
-    const box = div.querySelector('.flightbox');
-    div.querySelector('.flightbtn').onclick = (e) => { e.stopPropagation(); box.classList.toggle('open'); if (box.classList.contains('open')) box.focus(); };
-    box.oninput = () => { const v = box.value; if (v) localStorage.setItem(flightKey(z), v); else localStorage.removeItem(flightKey(z)); };
-    box.onclick = (e) => e.stopPropagation(); // typing in the box must not zoom the row
+      `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${esc(z.name)}.kml">${EARTH_ICON}</a>`;
     div.querySelector('.donebox').onchange = (e) => {
       z.done = e.target.checked;
       if (z.done) localStorage.setItem(markKey(z), '1'); else localStorage.removeItem(markKey(z));
@@ -684,7 +563,7 @@ function render() {
       if (e.target.closest('a') || e.target.type === 'checkbox') return; // ...except links & the mark
       if (focusedId === z.id) { focusedId = null; fitZones(); }          // second press → back to fit-all
       else { focusedId = z.id; flyToZone(z); }
-      if (editMode) selectZone(zones.indexOf(z)); // ...and pick it for editing
+      refreshFlight(); // keep the flight-settings panel pointed at the focused polygon
     });
     $('list').appendChild(div);
   });
