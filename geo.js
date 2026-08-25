@@ -76,6 +76,9 @@ export const mapsNavUrl = (lat, lng) =>
 export const wazeNavUrl = (lat, lng) =>
   `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
 
+export const appleNavUrl = (lat, lng) =>
+  `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+
 // Escape for HTML/XML text + attributes. Zone names come from an uploaded KML —
 // untrusted input — so every interpolation of a name goes through this.
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>

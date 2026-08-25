@@ -5,7 +5,7 @@ import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/+esm';
 maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', true);
 // import geo.js with app.js's own ?v= cache-buster so it never serves stale
 const {
-  centroid, polygonRings, polygonArea, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine, esc,
+  centroid, polygonRings, polygonArea, orderByNearestNeighbor, mapsNavUrl, wazeNavUrl, appleNavUrl, zoneKml, mapsRouteUrl, decodeXml, featureName, haversine, esc,
 } = await import('./geo.js' + new URL(import.meta.url).search);
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
@@ -268,6 +268,7 @@ function showCoord() {
   box.innerHTML =
     `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(lat, lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
     `<a class="navico" title="Open in Waze" href="${wazeNavUrl(lat, lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
+    `<a class="navico" title="Open in Apple Maps" href="${appleNavUrl(lat, lng)}" target="_blank" rel="noopener">${APPLE_ICON}</a>` +
     `<button class="copybtn" data-c="${t}">Copy</button>` +
     `<span class="coordtxt">${t}</span>`; // icons/actions left, coordinates right
   box.style.display = 'flex';
@@ -326,6 +327,9 @@ let tokenClient, tokenWaiter, refreshing;
 // ponytail: cache the ~1h token in sessionStorage (tab-scoped, gone on tab close) so a
 // reload inside the hour re-enters silently — no auth flash, no repeat Google popup.
 const TOKEN_KEY = 'dmp_token';
+// ponytail: on localhost with no cached token, skip OAuth and stub Drive so the UI loads
+// with no popup — for map/geo/layout work. Sign in normally the day you need to test Drive.
+const DEV = location.hostname === 'localhost';
 function enterApp() {
   $('gate').style.display = 'none';
   map.resize(); // container sized after the gate hid
@@ -354,6 +358,17 @@ function initAuth() {
 // every Drive call goes through here: on 401 (expired token) refresh silently
 // and retry once. 403 (quota/permission) is real — let it surface.
 async function driveFetch(url, opts = {}) {
+  // ponytail: dev with no token — no real Drive. If the pipeline left today's mission
+  // in scripts/done/, serve that one so Auto load is testable end-to-end with no
+  // sign-in; otherwise an empty list keeps every caller happy.
+  if (DEV && !accessToken) {
+    const today = new Date().toLocaleDateString('en-CA');
+    const local = `scripts/done/${today}.mission.json`;
+    if (url.includes('alt=media')) return fetch(local);
+    if (url.includes('/drive/v3/files?') && (await fetch(local, { method: 'HEAD' })).ok)
+      return new Response(JSON.stringify({ files: [{ id: 'dev', name: `${today}.mission.json` }] }), { status: 200 });
+    return new Response('{"files":[]}', { status: 200 });
+  }
   const call = () => fetch(url, { ...opts, headers: { Authorization: `Bearer ${accessToken}`, ...opts.headers } });
   let r = await call();
   if (r.status === 401) {
@@ -381,9 +396,13 @@ function startAuth() {
   initAuth();
   accessToken = sessionStorage.getItem(TOKEN_KEY);
   if (accessToken) enterApp();
+  else if (DEV) enterApp(); // ponytail: dev — straight in, no popup
   else tokenClient.requestAccessToken({ prompt: '' });
 }
-if (window.google?.accounts?.oauth2) startAuth();
+// queueMicrotask: if GSI is already loaded (cached), calling startAuth synchronously
+// here runs enterApp mid-module-evaluation — it touches let-bindings declared further
+// down (TDZ throw), which aborts the whole module. Defer one tick past evaluation.
+if (window.google?.accounts?.oauth2) queueMicrotask(startAuth);
 else {
   const t = setInterval(() => {
     if (window.google?.accounts?.oauth2) { clearInterval(t); startAuth(); }
@@ -528,6 +547,7 @@ $('mname').value = new Date().toLocaleDateString('en-CA'); // today's date, YYYY
 
 const MAPS_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
 const WAZE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>';
+const APPLE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4a9cf6" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm-1.2 10.2L7.5 9l1-1 1.9 1.9L14.5 6l1 1-4.7 5.2z"/></svg>';
 const EARTH_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34a853" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>';
 
 // per-polygon "mission complete" marks, persisted in localStorage so they survive
@@ -555,6 +575,7 @@ function render() {
       `<b><input type="checkbox" class="donebox" title="Mark mission complete"${done ? ' checked' : ''}><span class="num">${i + 1}</span> ${esc(z.name)}<span class="area" title="Surface area">${fmtArea(polygonArea(z.feature.geometry.coordinates[0]))}</span></b>` +
       `<a class="navico" title="Open in Google Maps" href="${mapsNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${MAPS_ICON}</a>` +
       `<a class="navico" title="Open in Waze" href="${wazeNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${WAZE_ICON}</a>` +
+      `<a class="navico" title="Open in Apple Maps" href="${appleNavUrl(z.lat, z.lng)}" target="_blank" rel="noopener">${APPLE_ICON}</a>` +
       `<a class="navico" title="Download polygon (KML)" href="${kml}" download="${esc(z.name)}.kml">${EARTH_ICON}</a>`;
     div.querySelector('.donebox').onchange = (e) => {
       z.done = e.target.checked;
@@ -673,7 +694,8 @@ async function refreshMissions() {
   const missions = files.filter((f) => f.name.endsWith('.mission.json'))
     .sort((a, b) => b.name.localeCompare(a.name));
   const sel = $('missions');
-  sel.style.display = $('delmission').style.display = missions.length ? 'inline' : 'none';
+  sel.style.display = $('delmission').style.display = $('autoload').style.display =
+    missions.length ? 'inline' : 'none';
   $('loadslot').style.opacity = missions.length ? '' : '.35'; // phone: don't show a dead icon
   sel.innerHTML = '<option value="" disabled selected>Load mission…</option>' +
     missions.map((f) => `<option value="${f.id}">${f.name.replace(/\.mission\.json$/, '')}</option>`).join('');
@@ -764,6 +786,20 @@ function fillMissionList() {
 function openLoadDialog() { fillMissionList(); $('loaddlg').showModal(); }
 $('loadclose').onclick = () => $('loaddlg').close();
 
+// Auto load: pick today's mission — the one the nightly pipeline uploads as
+// <YYYY-MM-DD>.mission.json — from the saved-missions list.
+async function autoLoadToday() {
+  autoLoaded = true; // an explicit pick — suppress the last-mission restore racing it
+  await refreshMissions(); // catch a mission uploaded after the app was opened
+  const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD
+  const opt = [...$('missions').options].find((o) => o.textContent === today);
+  if (!opt) return alert(`No mission for ${today} in Drive yet.`);
+  if ($('loaddlg').open) $('loaddlg').close();
+  $('missions').value = opt.value;
+  loadMission(opt.value, opt.textContent);
+}
+$('autoload').onclick = $('autoloaddlg').onclick = autoLoadToday;
+
 async function loadMission(id, name) {
   const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
   if (!r.ok) return alert("Couldn't load that mission — try again."); // never a silent no-op
@@ -850,6 +886,7 @@ function setDriveCur(i) {
   roiZone = z; // so a POI toggle frames the right zone
   $('drivemaps').href = mapsNavUrl(z.lat, z.lng);
   $('drivewaze').href = wazeNavUrl(z.lat, z.lng);
+  $('driveapple').href = appleNavUrl(z.lat, z.lng);
   refreshFlight(); // an open flight panel follows the drum
 }
 function driveScroll() {

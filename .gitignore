@@ -1,2 +1,8 @@
 .claude/
 .DS_Store
+scripts/client_secret.json
+scripts/token.json
+scripts/pending/
+scripts/done/
+scripts/*.log
+__pycache__/

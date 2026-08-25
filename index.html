@@ -231,6 +231,22 @@
       border-radius: 12px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.5); color: var(--text);
       font-weight: 600; font-size: 14px; text-decoration: none; }
     #drivenav a svg { width: 18px; height: 18px; }
+
+    /* ==================== AURORA GLASS theme ====================
+       Reskin only — same markup/JS. Evolves the existing glassmorphism: shifts the
+       palette from electric cyan to softer aurora teal and warms the backdrop. The
+       rounded frosted panels the base already has ARE the Aurora look. */
+    :root {
+      --bg: #060e14; --bg2: #0a1a24; --panel: rgba(10,22,30,.68); --line: rgba(120,230,255,.20);
+      --text: #e6f7fb; --muted: #7fb3c0; --accent: #22e0e0; --blue: #17c6d6;
+      --glass: rgba(34,224,224,.06); --glass-hi: rgba(120,230,255,.18);
+      --glow: 0 0 16px rgba(34,224,224,.45);
+    }
+    body { background: radial-gradient(120% 90% at 50% -8%, #123243 0%, #0a1a24 45%, var(--bg) 100%); }
+    button.primary, .gate-card #signin { background: linear-gradient(140deg, #4af0f0, #0aa6c0); color: #04121a; }
+    button.primary:hover, .gate-card #signin:hover { background: linear-gradient(140deg, #6ff8f8, #22e0e0); }
+    /* frostier, slightly more inset tool rail to match the aurora mock */
+    #mapbar { background: rgba(10,22,30,.6); }
   </style>
 </head>
 <body>
@@ -254,6 +270,7 @@
         </div>
         <div class="row" style="flex-wrap:nowrap">
           <select id="missions" style="display:none"></select>
+          <button id="autoload" title="Load today's mission" style="display:none">📅</button>
           <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
           <button id="save" class="primary" disabled>Save</button>
         </div>
@@ -285,6 +302,7 @@
       <div id="drivenav">
         <a id="drivemaps" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path fill="#ea4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>Maps</a>
         <a id="drivewaze" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path fill="#33ccff" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>Waze</a>
+        <a id="driveapple" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path fill="#4a9cf6" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm-1.2 10.2L7.5 9l1-1 1.9 1.9L14.5 6l1 1-4.7 5.2z"/></svg>Apple</a>
       </div>
     </div></div>
 
@@ -304,7 +322,7 @@
   <dialog id="loaddlg" class="dlg">
     <h2>Load mission</h2>
     <div id="loadlist"></div>
-    <div class="dlg-actions"><button id="loadclose">Close</button></div>
+    <div class="dlg-actions"><button id="autoloaddlg" class="primary">📅 Auto load today</button><button id="loadclose">Close</button></div>
   </dialog>
 
   <script src="https://accounts.google.com/gsi/client" async></script>
