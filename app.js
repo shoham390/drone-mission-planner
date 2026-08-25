@@ -10,7 +10,10 @@ const {
 
 // ---- config: paste your OAuth client id from Google Cloud (see README) ----
 const CLIENT_ID = '462312273267-hcab3itc0093mj9si0f76oaufvecos2t.apps.googleusercontent.com';
-const SCOPE = 'https://www.googleapis.com/auth/drive.file'; // per-file: no app verification needed
+// drive.file: our own saved missions. drive.readonly: lets Auto load read the raw
+// KML drop folder another app creates ("Agent Misson Planer Kml"/<date>) — restricted
+// scope, so Google shows an "unverified app" warning once at consent; Advanced → continue.
+const SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 
 // ---- state ----
 let accessToken = null;
@@ -364,13 +367,16 @@ async function driveFetch(url, opts = {}) {
     const today = new Date().toLocaleDateString('en-CA');
     const local = `scripts/done/${today}.mission.json`;
     if (url.includes('alt=media')) return fetch(local);
+    if (url.includes('folder')) return new Response('{"files":[]}', { status: 200 }); // no fake Drive folders
     if (url.includes('/drive/v3/files?') && (await fetch(local, { method: 'HEAD' })).ok)
       return new Response(JSON.stringify({ files: [{ id: 'dev', name: `${today}.mission.json` }] }), { status: 200 });
     return new Response('{"files":[]}', { status: 200 });
   }
   const call = () => fetch(url, { ...opts, headers: { Authorization: `Bearer ${accessToken}`, ...opts.headers } });
   let r = await call();
-  if (r.status === 401) {
+  // 403 too: a token cached before the drive.readonly scope was added lacks it — one
+  // silent re-mint picks up the wider grant. A real 403 just fails again and surfaces.
+  if (r.status === 401 || r.status === 403) {
     // one silent refresh at a time: concurrent 401s share it instead of clobbering
     // tokenWaiter (which orphaned a promise -> hung Drive call -> "load needs a refresh").
     refreshing ??= new Promise((res) => { tokenWaiter = res; tokenClient.requestAccessToken({ prompt: '' }); })
@@ -783,20 +789,56 @@ function fillMissionList() {
 function openLoadDialog() { fillMissionList(); $('loaddlg').showModal(); }
 $('loadclose').onclick = () => $('loaddlg').close();
 
-// Auto load: pick the mission named <today + offset days> — the daily
-// <YYYY-MM-DD>.mission.json the pipeline uploads. Desktop: the 📅 dropdown;
-// phone: the load dialog's Today / Tomorrow buttons.
+// Auto load: read the day's raw KML/KMZ drop straight from the Drive folder the
+// planning skill fills ("Agent Misson Planer Kml"/<YYYY-MM-DD>) — fully in-app, no
+// converter or uploader in between. A "<kml name>.txt" beside a kml is that file's
+// flight settings. Desktop: the dropdown; phone: the dialog's Today / Tomorrow.
+const SOURCE_FOLDER = 'Agent Misson Planer Kml';
 async function autoLoadDay(offset) {
   autoLoaded = true; // an explicit pick — suppress the last-mission restore racing it
-  await refreshMissions(); // catch a mission uploaded after the app was opened
   const d = new Date();
   d.setDate(d.getDate() + offset); // setDate, not +24h: DST-safe
   const day = d.toLocaleDateString('en-CA'); // local YYYY-MM-DD
-  const opt = [...$('missions').options].find((o) => o.textContent === day);
-  if (!opt) return alert(`No mission for ${day} in Drive yet.`);
-  if ($('loaddlg').open) $('loaddlg').close();
-  $('missions').value = opt.value;
-  loadMission(opt.value, opt.textContent);
+  const list = async (q) => {
+    const r = await driveFetch('https://www.googleapis.com/drive/v3/files?pageSize=100'
+      + `&q=${encodeURIComponent(q)}&fields=files(id,name,createdTime)`);
+    if (!r.ok) throw new Error('Drive listing failed — try signing in again.');
+    return (await r.json()).files || [];
+  };
+  const media = (id) => driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+  try {
+    const src = await list(`name='${SOURCE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    if (!src.length) return alert(`Drive folder "${SOURCE_FOLDER}" not found.`);
+    // the skill can leave several folders named <day> (re-runs) — newest wins
+    const dayFolders = await list(`name='${day}' and '${src[0].id}' in parents and `
+      + "mimeType='application/vnd.google-apps.folder' and trashed=false");
+    if (!dayFolders.length) return alert(`No "${day}" folder in Drive yet.`);
+    const newest = dayFolders.sort((a, b) => b.createdTime.localeCompare(a.createdTime))[0];
+    const files = await list(`'${newest.id}' in parents and trashed=false`);
+    const kmls = files.filter((f) => /\.km[lz]$/i.test(f.name)).sort((a, b) => a.name.localeCompare(b.name));
+    if (!kmls.length) return alert(`The "${day}" folder has no KML files.`);
+    // start clean, like loading a saved mission
+    numberMarkers.forEach((m) => m.remove());
+    zones = []; numberMarkers = [];
+    $('mname').value = day; // flight keys + the Save default follow the day
+    for (const f of kmls) {
+      const r = await media(f.id);
+      if (!r.ok) throw new Error(`${f.name}: download failed`);
+      const stem = f.name.replace(/\.km[lz]$/i, '');
+      const label = stem.replace(/[‎‏⁦-⁩]/g, '').trim();
+      const before = new Set(zones.map((z) => z.name));
+      addZonesFromGeoJSON(await fileToGeoJSON(new File([await r.blob()], f.name)), label);
+      const sidecar = files.find((x) => x.name === `${stem}.txt`);
+      if (!sidecar) continue;
+      const t = await media(sidecar.id);
+      const text = t.ok ? (await t.text()).trim() : '';
+      if (text) for (const z of zones) if (!before.has(z.name)) localStorage.setItem(flightKey(z), text);
+    }
+    if ($('loaddlg').open) $('loaddlg').close();
+    refreshFlight();
+  } catch (err) {
+    alert(`Auto load failed: ${err.message}`); // never a silent no-op
+  }
 }
 $('autoload').onchange = () => { autoLoadDay(+$('autoload').value); $('autoload').value = ''; };
 $('autoloadtoday').onclick = () => autoLoadDay(0);
