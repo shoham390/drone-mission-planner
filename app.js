@@ -783,19 +783,24 @@ function fillMissionList() {
 function openLoadDialog() { fillMissionList(); $('loaddlg').showModal(); }
 $('loadclose').onclick = () => $('loaddlg').close();
 
-// Auto load: pick today's mission — the one the nightly pipeline uploads as
-// <YYYY-MM-DD>.mission.json — from the saved-missions list.
-async function autoLoadToday() {
+// Auto load: pick the mission named <today + offset days> — the daily
+// <YYYY-MM-DD>.mission.json the pipeline uploads. Desktop: the 📅 dropdown;
+// phone: the load dialog's Today / Tomorrow buttons.
+async function autoLoadDay(offset) {
   autoLoaded = true; // an explicit pick — suppress the last-mission restore racing it
   await refreshMissions(); // catch a mission uploaded after the app was opened
-  const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD
-  const opt = [...$('missions').options].find((o) => o.textContent === today);
-  if (!opt) return alert(`No mission for ${today} in Drive yet.`);
+  const d = new Date();
+  d.setDate(d.getDate() + offset); // setDate, not +24h: DST-safe
+  const day = d.toLocaleDateString('en-CA'); // local YYYY-MM-DD
+  const opt = [...$('missions').options].find((o) => o.textContent === day);
+  if (!opt) return alert(`No mission for ${day} in Drive yet.`);
   if ($('loaddlg').open) $('loaddlg').close();
   $('missions').value = opt.value;
   loadMission(opt.value, opt.textContent);
 }
-$('autoload').onclick = $('autoloaddlg').onclick = autoLoadToday;
+$('autoload').onchange = () => { autoLoadDay(+$('autoload').value); $('autoload').value = ''; };
+$('autoloadtoday').onclick = () => autoLoadDay(0);
+$('autoloadtmrw').onclick = () => autoLoadDay(1);
 
 async function loadMission(id, name) {
   const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);

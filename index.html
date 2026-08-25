@@ -270,7 +270,11 @@
         </div>
         <div class="row" style="flex-wrap:nowrap">
           <select id="missions" style="display:none"></select>
-          <button id="autoload" title="Load today's mission" style="display:none">📅</button>
+          <select id="autoload" title="Auto load daily mission" style="display:none">
+            <option value="" selected disabled>Auto load…</option>
+            <option value="0">Today</option>
+            <option value="1">Tomorrow</option>
+          </select>
           <button id="delmission" title="Delete selected mission" style="display:none">🗑</button>
           <button id="save" class="primary" disabled>Save</button>
         </div>
@@ -321,7 +325,7 @@
   <dialog id="loaddlg" class="dlg">
     <h2>Load mission</h2>
     <div id="loadlist"></div>
-    <div class="dlg-actions"><button id="autoloaddlg" class="primary">📅 Auto load today</button><button id="loadclose">Close</button></div>
+    <div class="dlg-actions"><button id="autoloadtoday" class="primary">Today</button><button id="autoloadtmrw" class="primary">Tomorrow</button><button id="loadclose">Close</button></div>
   </dialog>
 
   <script src="https://accounts.google.com/gsi/client" async></script>
