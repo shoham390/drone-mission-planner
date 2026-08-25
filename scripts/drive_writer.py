@@ -228,6 +228,8 @@ def upload_pending():
     token = creds().token
     for p in drops:
         try:
+            if not p.exists():  # raced the launchd watcher — its upload counts
+                continue
             target, doc, stats = load_drop(p)
             validate(doc, target)
             body = base64.b64encode(json.dumps(doc, ensure_ascii=False).encode("utf-8")).decode("ascii")
@@ -242,6 +244,8 @@ def upload_pending():
                           f", {stats['duplicateRingsSkipped']} dupe rings skipped]")
             log(f"OK {'updated' if updated else 'created'} {target} "
                 f"({len(doc['zones'])} zones){extra} → file id {f['id']}")
+        except FileNotFoundError:  # consumed mid-flight by the other uploader
+            continue
         except Exception as e:  # one bad drop must not block the others
             p.rename(p.with_name(p.name + ".failed"))
             log(f"FAIL {p.name}: {type(e).__name__}: {e}")
@@ -251,7 +255,10 @@ SOURCE_FOLDER = "Agent Misson Planer Kml"  # the skill's drop area (inside "Prop
 
 
 def pull_daily():
-    """Read today's KMLs from the skill's Drive drop, convert, upload for the app.
+    """Read today's AND tomorrow's KMLs from the skill's Drive drop, convert, upload.
+
+    Both days because the skill creates tomorrow's folder the evening before — the
+    app's "Tomorrow" auto-load needs that mission published the same evening.
 
     The skill writes raw KML/KMZ into SOURCE_FOLDER/<date>/ with a different OAuth
     client, so the web app's drive.file scope can never see them. This token has full
@@ -259,21 +266,10 @@ def pull_daily():
     own folder via the normal pending/ → upload_pending() path.
     """
     token = creds().token
-    today = dt.date.today().isoformat()
     q = f"name='{SOURCE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     src = _get(token, f"{API}/files?q={requests.utils.quote(q)}&fields=files(id)").get("files", [])
     if not src:
         sys.exit(f"Drive folder {SOURCE_FOLDER!r} not found")
-    # the skill can leave several folders named <today> (re-runs) — newest wins
-    q = (f"name='{today}' and '{src[0]['id']}' in parents and "
-         "mimeType='application/vnd.google-apps.folder' and trashed=false")
-    folders = _get(token, f"{API}/files?q={requests.utils.quote(q)}"
-                          "&fields=files(id,createdTime)").get("files", [])
-    if not folders:
-        sys.exit(f"no '{today}' folder in {SOURCE_FOLDER!r} yet")
-    newest = max(folders, key=lambda f: f["createdTime"])
-    q = f"'{newest['id']}' in parents and trashed=false"
-    files = _get(token, f"{API}/files?q={requests.utils.quote(q)}&fields=files(id,name)").get("files", [])
 
     def fetch(fid):
         r = requests.get(f"{API}/files/{fid}?alt=media",
@@ -281,21 +277,39 @@ def pull_daily():
         r.raise_for_status()
         return r.content
 
-    # optional flight-settings sidecar: a "<kml stem>.txt" next to its kml
-    texts = {re.sub(r"\.txt$", "", f["name"], flags=re.I): fetch(f["id"]).decode("utf-8", "replace")
-             for f in files if f["name"].lower().endswith(".txt")}
-    records = [{"title": f["name"],
-                "kml": kml2mission.kml_text(fetch(f["id"])),
-                "flight": texts.get(re.sub(r"\.km[lz]$", "", f["name"], flags=re.I), "")}
-               for f in sorted(files, key=lambda f: f["name"])
-               if re.search(r"\.km[lz]$", f["name"], re.I)]
-    if not records:
-        sys.exit(f"'{today}' folder has no .kml/.kmz files")
-    doc, stats = kml2mission.build({"date": today, "records": records})
-    PENDING.mkdir(exist_ok=True)
-    (PENDING / doc["name"]).write_text(json.dumps(doc, ensure_ascii=False))
-    log(f"pulled {len(records)} kml from '{today}' ({len(folders)} folder(s), newest won) "
-        f"→ {doc['name']} {stats}")
+    pulled = 0
+    for day in (dt.date.today(), dt.date.today() + dt.timedelta(days=1)):
+        day = day.isoformat()
+        # the skill can leave several folders named <day> (re-runs) — newest wins
+        q = (f"name='{day}' and '{src[0]['id']}' in parents and "
+             "mimeType='application/vnd.google-apps.folder' and trashed=false")
+        folders = _get(token, f"{API}/files?q={requests.utils.quote(q)}"
+                              "&fields=files(id,createdTime)").get("files", [])
+        if not folders:
+            log(f"no '{day}' folder in {SOURCE_FOLDER!r} — skipped")
+            continue
+        newest = max(folders, key=lambda f: f["createdTime"])
+        q = f"'{newest['id']}' in parents and trashed=false"
+        files = _get(token, f"{API}/files?q={requests.utils.quote(q)}&fields=files(id,name)").get("files", [])
+        # optional flight-settings sidecar: a "<kml stem>.txt" next to its kml
+        texts = {re.sub(r"\.txt$", "", f["name"], flags=re.I): fetch(f["id"]).decode("utf-8", "replace")
+                 for f in files if f["name"].lower().endswith(".txt")}
+        records = [{"title": f["name"],
+                    "kml": kml2mission.kml_text(fetch(f["id"])),
+                    "flight": texts.get(re.sub(r"\.km[lz]$", "", f["name"], flags=re.I), "")}
+                   for f in sorted(files, key=lambda f: f["name"])
+                   if re.search(r"\.km[lz]$", f["name"], re.I)]
+        if not records:
+            log(f"'{day}' folder has no .kml/.kmz files — skipped")
+            continue
+        doc, stats = kml2mission.build({"date": day, "records": records})
+        PENDING.mkdir(exist_ok=True)
+        (PENDING / doc["name"]).write_text(json.dumps(doc, ensure_ascii=False))
+        log(f"pulled {len(records)} kml from '{day}' ({len(folders)} folder(s), newest won) "
+            f"→ {doc['name']} {stats}")
+        pulled += 1
+    if not pulled:
+        sys.exit("nothing to pull for today or tomorrow")
     upload_pending()
 
 
