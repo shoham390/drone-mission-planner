@@ -106,9 +106,9 @@ if (PHONE) {
 map.on('load', () => {
   map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones',
-    paint: { 'fill-color': '#22e0e0', 'fill-opacity': 0.18 } });
+    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.18 } });
   map.addLayer({ id: 'zones-line', type: 'line', source: 'zones',
-    paint: { 'line-color': '#22e0e0', 'line-width': 2 } });
+    paint: { 'line-color': ['get', 'color'], 'line-width': 2 } });
   // ROI: dashed line target→you. The distance chip is a DOM marker (see showDist),
   // not a symbol layer — symbols flicker/re-fade on every location update.
   map.addSource('roibox', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -124,8 +124,12 @@ const $ = (id) => document.getElementById(id);
 document.addEventListener('touchstart', () => {}, { passive: true });
 
 // push current zones into the map source
+// ponytail: fixed cool-hue palette cycled by index, not random — distinct neighbors,
+// same aurora family, and stable colors across reloads.
+const ZONE_COLORS = ['#22e0e0', '#5aa0ff', '#37e08a', '#8c8cff', '#1fc7a0', '#4dc3ff'];
 function drawZones() {
   const src = map.getSource('zones');
+  zones.forEach((z, i) => { z.feature.properties.color = ZONE_COLORS[i % ZONE_COLORS.length]; });
   if (src) src.setData({ type: 'FeatureCollection', features: zones.map((z) => z.feature) });
 }
 
@@ -836,6 +840,7 @@ async function autoLoadDay(offset) {
     }
     if ($('loaddlg').open) $('loaddlg').close();
     refreshFlight();
+    if (zones.length) $('save').onclick(); // auto-save the day's mission to Drive
   } catch (err) {
     alert(`Auto load failed: ${err.message}`); // never a silent no-op
   }

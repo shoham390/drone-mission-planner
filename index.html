@@ -222,10 +222,11 @@
     #drivepicker .spacer { height: 44px; }
     #drivepicker .opt { height: 44px; scroll-snap-align: center; display: flex; align-items: center; gap: 12px;
       justify-content: flex-end; padding: 0 6px; will-change: transform; }
-    #drivepicker .opt .on { font-size: 18px; font-weight: 600; white-space: nowrap; }
+    #drivepicker .opt .on { font-size: 18px; font-weight: 600; white-space: nowrap;
+      text-shadow: 0 0 4px #04222a, 0 0 4px #04222a, 0 1px 2px #000; }
     #drivepicker .opt .oi { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--accent);
       color: #04070a; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
-    #drivepicker .opt.cur .on { color: var(--accent); text-shadow: var(--glow); }
+    #drivepicker .opt.cur .on { color: var(--accent); text-shadow: var(--glow), 0 0 4px #04222a, 0 0 4px #04222a; }
     #drivenav { display: flex; gap: 10px; margin-top: 6px; }
     #drivenav a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px;
       border-radius: 12px; border: 1px solid var(--glass-hi); background: rgba(6,13,17,.5); color: var(--text);
